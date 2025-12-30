@@ -16,7 +16,10 @@
  * - neon_volunteer_opportunities
  */
 
-import { supabase } from '@/lib/supabase';
+import { supabase as supabaseClient } from '@/lib/supabase';
+
+// Use untyped supabase client for neon tables not in Database interface
+const supabase = supabaseClient as any;
 
 // ============================================
 // Types for Neon CRM API responses
