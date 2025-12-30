@@ -30,12 +30,14 @@ interface UserProfile {
   created_at: string;
 }
 
+import { Gavel } from 'lucide-react';
+
 const roleConfig: Record<UserRole, { label: string; icon: typeof Shield; color: string }> = {
   admin: { label: 'Administrator', icon: Shield, color: 'bg-red-100 text-red-700' },
-  case_manager: { label: 'Case Manager', icon: Users, color: 'bg-blue-100 text-blue-700' },
+  coordinator: { label: 'Coordinator', icon: Users, color: 'bg-blue-100 text-blue-700' },
   teacher: { label: 'Teacher', icon: GraduationCap, color: 'bg-purple-100 text-purple-700' },
+  board_member: { label: 'Board Member', icon: Gavel, color: 'bg-orange-100 text-orange-700' },
   volunteer: { label: 'Volunteer', icon: UserCheck, color: 'bg-green-100 text-green-700' },
-  viewer: { label: 'Viewer', icon: Eye, color: 'bg-gray-100 text-gray-700' },
 };
 
 export default function UserManagementPage() {

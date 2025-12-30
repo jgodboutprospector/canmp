@@ -4,8 +4,8 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { User, Session } from '@supabase/supabase-js';
 
-// User roles
-export type UserRole = 'admin' | 'case_manager' | 'teacher' | 'volunteer' | 'viewer';
+// User roles (matches database enum: admin, coordinator, teacher, board_member, volunteer)
+export type UserRole = 'admin' | 'coordinator' | 'teacher' | 'board_member' | 'volunteer';
 
 // User profile with role
 export interface UserProfile {
@@ -107,7 +107,7 @@ export function hasPermission(role: UserRole, permission: string): boolean {
       'sync_neon',
       'view_all',
     ],
-    case_manager: [
+    coordinator: [
       'edit_beneficiaries',
       'view_reports',
       'manage_attendance',
@@ -120,12 +120,13 @@ export function hasPermission(role: UserRole, permission: string): boolean {
       'view_own_classes',
       'edit_student_notes',
     ],
+    board_member: [
+      'view_reports',
+      'view_dashboard',
+    ],
     volunteer: [
       'view_assigned_families',
       'add_notes',
-    ],
-    viewer: [
-      'view_dashboard',
     ],
   };
 

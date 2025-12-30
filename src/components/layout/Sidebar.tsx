@@ -19,14 +19,15 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/components/providers/AuthProvider';
 
 // Navigation items with role restrictions
+// Roles: admin, coordinator, teacher, board_member, volunteer
 const allNavigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'case_manager', 'teacher', 'volunteer', 'viewer'] },
-  { name: 'Housing', href: '/housing', icon: Home, roles: ['admin', 'case_manager'] },
-  { name: 'Beneficiaries', href: '/beneficiaries', icon: Users, roles: ['admin', 'case_manager'] },
-  { name: 'Language Program', href: '/language', icon: GraduationCap, roles: ['admin', 'case_manager', 'teacher'] },
-  { name: 'Workforce', href: '/workforce', icon: Briefcase, roles: ['admin', 'case_manager'] },
-  { name: 'Mentor Teams', href: '/mentors', icon: UserHeart, roles: ['admin', 'case_manager', 'volunteer'] },
-  { name: 'Events', href: '/events', icon: Calendar, roles: ['admin', 'case_manager', 'teacher', 'volunteer'] },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'coordinator', 'teacher', 'board_member', 'volunteer'] },
+  { name: 'Housing', href: '/housing', icon: Home, roles: ['admin', 'coordinator'] },
+  { name: 'Beneficiaries', href: '/beneficiaries', icon: Users, roles: ['admin', 'coordinator'] },
+  { name: 'Language Program', href: '/language', icon: GraduationCap, roles: ['admin', 'coordinator', 'teacher'] },
+  { name: 'Workforce', href: '/workforce', icon: Briefcase, roles: ['admin', 'coordinator'] },
+  { name: 'Mentor Teams', href: '/mentors', icon: UserHeart, roles: ['admin', 'coordinator', 'volunteer'] },
+  { name: 'Events', href: '/events', icon: Calendar, roles: ['admin', 'coordinator', 'teacher', 'volunteer'] },
 ];
 
 const adminNav = [
@@ -34,7 +35,7 @@ const adminNav = [
 ];
 
 const bottomNav = [
-  { name: 'Settings', href: '/settings', icon: Settings, roles: ['admin', 'case_manager', 'teacher', 'volunteer', 'viewer'] },
+  { name: 'Settings', href: '/settings', icon: Settings, roles: ['admin', 'coordinator', 'teacher', 'board_member', 'volunteer'] },
 ];
 
 export default function Sidebar() {
@@ -68,10 +69,10 @@ export default function Sidebar() {
   const getRoleDisplay = () => {
     const roleLabels: Record<string, string> = {
       admin: 'Administrator',
-      case_manager: 'Case Manager',
+      coordinator: 'Coordinator',
       teacher: 'Teacher',
+      board_member: 'Board Member',
       volunteer: 'Volunteer',
-      viewer: 'Viewer',
     };
     return roleLabels[role] || 'User';
   };
