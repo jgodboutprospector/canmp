@@ -1,26 +1,304 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
+@theme inline {
+  /* CANMP Brand Colors */
+  --color-canmp-green-50: #F0F5F1;
+  --color-canmp-green-100: #E1EBE3;
+  --color-canmp-green-200: #C3D7C7;
+  --color-canmp-green-300: #8BB897;
+  --color-canmp-green-400: #4D9960;
+  --color-canmp-green-500: #1E5631;
+  --color-canmp-green-600: #184527;
+  --color-canmp-green-700: #12341D;
+  --color-canmp-green-800: #0C2313;
+  --color-canmp-green-900: #061209;
+
+  --color-canmp-red-50: #FEF2F4;
+  --color-canmp-red-100: #FDE6E9;
+  --color-canmp-red-200: #F9C0C9;
+  --color-canmp-red-300: #F28B9D;
+  --color-canmp-red-400: #E85A75;
+  --color-canmp-red-500: #C41E3A;
+  --color-canmp-red-600: #A3182F;
+  --color-canmp-red-700: #821325;
+  --color-canmp-red-800: #610E1B;
+  --color-canmp-red-900: #400911;
+
+  --color-canmp-sage-50: #F4F5F2;
+  --color-canmp-sage-100: #E8EBE4;
+  --color-canmp-sage-200: #D1D7C9;
+  --color-canmp-sage-300: #B0B99F;
+  --color-canmp-sage-400: #9AA881;
+  --color-canmp-sage-500: #8B9A71;
+  --color-canmp-sage-600: #6F7B5A;
+  --color-canmp-sage-700: #535C44;
+  --color-canmp-sage-800: #383E2D;
+  --color-canmp-sage-900: #1C1F17;
+
+  --color-canmp-cream: #F5F5F0;
+
+  /* Typography */
+  --font-heading: 'DM Sans', sans-serif;
+  --font-body: 'IBM Plex Sans', sans-serif;
+}
+
 :root {
-  --background: #ffffff;
+  --background: #F5F5F0;
   --foreground: #171717;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+html {
+  font-family: 'IBM Plex Sans', sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'DM Sans', sans-serif;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Component Classes - Using plain CSS for Tailwind v4 compatibility */
+
+/* Button base */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  background-color: #1E5631;
+  color: white;
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+}
+
+.btn-primary:hover {
+  background-color: #184527;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  background-color: white;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+}
+
+.btn-secondary:hover {
+  background-color: #f9fafb;
+}
+
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  background-color: #C41E3A;
+  color: white;
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+}
+
+.btn-danger:hover {
+  background-color: #A3182F;
+}
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  background-color: transparent;
+  color: #4b5563;
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+}
+
+.btn-ghost:hover {
+  background-color: #f3f4f6;
+}
+
+/* Card */
+.card {
+  background-color: white;
+  border-radius: 0.75rem;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+/* Input */
+.input {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid #d1d5db;
+  font-size: 0.875rem;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.input:focus {
+  border-color: #1E5631;
+  box-shadow: 0 0 0 2px rgba(30, 86, 49, 0.2);
+}
+
+/* Badge base */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.badge-default {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background-color: #f3f4f6;
+  color: #374151;
+}
+
+.badge-success {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background-color: #E1EBE3;
+  color: #12341D;
+}
+
+.badge-warning {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background-color: #fef3c7;
+  color: #a16207;
+}
+
+.badge-danger {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background-color: #FDE6E9;
+  color: #821325;
+}
+
+.badge-info {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.badge-purple {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background-color: #f3e8ff;
+  color: #7c3aed;
+}
+
+/* Table */
+.table-header {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.table-cell {
+  padding: 1rem;
+  font-size: 0.875rem;
+}
+
+.table-row {
+  border-bottom: 1px solid #f3f4f6;
+  transition: background-color 0.15s;
+}
+
+.table-row:hover {
+  background-color: #f9fafb;
+}
+
+/* Scrollbar */
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background-color: #f3f4f6;
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: #9ca3af;
 }

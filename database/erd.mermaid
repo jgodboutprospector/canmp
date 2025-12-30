@@ -1,0 +1,280 @@
+erDiagram
+    %% ==========================================
+    %% CANMP Case Management System - ERD v1.0
+    %% ==========================================
+
+    %% CORE ENTITIES
+    sites ||--o{ users : "employs"
+    sites ||--o{ households : "serves"
+    sites ||--o{ properties : "contains"
+    sites ||--o{ class_sections : "hosts"
+    sites ||--o{ teachers : "has"
+
+    sites {
+        uuid id PK
+        string name
+        enum location "waterville|augusta"
+        string address
+        string phone
+    }
+
+    users {
+        uuid id PK
+        string email UK
+        string first_name
+        string last_name
+        enum role "admin|coordinator|teacher|board|volunteer"
+        uuid site_id FK
+        boolean is_active
+    }
+
+    %% BENEFICIARY & HOUSEHOLD
+    households ||--o{ beneficiaries : "contains"
+    households ||--o{ leases : "has"
+    households ||--o{ case_notes : "about"
+    households ||--o{ mentor_teams : "assigned"
+    users ||--o{ households : "coordinates"
+
+    households {
+        uuid id PK
+        string name "e.g. Aldeek Family"
+        uuid site_id FK
+        string primary_language
+        string country_of_origin
+        date date_arrived_maine
+        uuid assigned_coordinator_id FK
+    }
+
+    beneficiaries {
+        uuid id PK
+        uuid household_id FK
+        string first_name
+        string last_name
+        date date_of_birth
+        enum relationship_type
+        bytea a_number_encrypted
+        bytea ssn_encrypted
+        enum english_proficiency
+        boolean is_employed
+    }
+
+    beneficiaries ||--o{ beneficiary_languages : "speaks"
+    beneficiaries ||--o{ class_enrollments : "enrolled_in"
+
+    beneficiary_languages {
+        uuid id PK
+        uuid beneficiary_id FK
+        string language
+        enum proficiency
+        boolean is_primary
+    }
+
+    %% PROPERTIES & HOUSING
+    properties ||--o{ units : "contains"
+    properties ||--o{ work_orders : "has"
+
+    properties {
+        uuid id PK
+        uuid site_id FK
+        string name "e.g. 18 Union Street"
+        string address_street
+        enum property_type "canmp_owned|master_lease"
+        string landlord_name
+        string landlord_phone
+        decimal master_lease_rent
+    }
+
+    units ||--o{ leases : "rented_via"
+    units ||--o{ work_orders : "has"
+
+    units {
+        uuid id PK
+        uuid property_id FK
+        string unit_number
+        int bedrooms
+        decimal bathrooms
+        int square_feet
+        decimal market_rent
+        decimal program_rent
+        enum status "available|occupied|maintenance"
+    }
+
+    %% LEASES
+    leases ||--o{ payments : "has"
+    leases ||--o{ bridge_milestones : "tracks"
+    leases ||--o{ case_notes : "related"
+
+    leases {
+        uuid id PK
+        uuid household_id FK
+        uuid unit_id FK
+        enum lease_type "canmp_direct|master_sublease|bridge"
+        enum status "active|completed|terminated"
+        date start_date
+        date end_date
+        decimal monthly_rent
+        decimal subsidy_amount
+        decimal tenant_pays
+        int program_month
+        int total_program_months
+    }
+
+    bridge_milestones {
+        uuid id PK
+        uuid lease_id FK
+        string title
+        boolean is_completed
+        date completed_date
+        int sort_order
+    }
+
+    payments {
+        uuid id PK
+        uuid lease_id FK
+        date payment_month
+        decimal amount_due
+        decimal amount_paid
+        enum status "pending|paid|late"
+        date paid_date
+    }
+
+    %% WORK ORDERS
+    work_orders ||--o{ work_order_comments : "has"
+    work_orders ||--o{ work_order_photos : "has"
+
+    work_orders {
+        uuid id PK
+        uuid property_id FK
+        uuid unit_id FK
+        uuid household_id FK
+        string title
+        text description
+        enum category "plumbing|hvac|electrical|etc"
+        enum priority "urgent|high|medium|low"
+        enum status "open|scheduled|in_progress|completed"
+        string assigned_to
+        date scheduled_date
+        decimal cost
+    }
+
+    work_order_comments {
+        uuid id PK
+        uuid work_order_id FK
+        uuid user_id FK
+        text content
+        timestamp created_at
+    }
+
+    %% CASE MANAGEMENT
+    users ||--o{ case_notes : "writes"
+
+    case_notes {
+        uuid id PK
+        uuid household_id FK
+        uuid beneficiary_id FK
+        uuid author_id FK
+        text content
+        enum visibility
+        string category
+        boolean is_followup_required
+        date followup_date
+    }
+
+    %% LANGUAGE PROGRAM
+    teachers ||--o{ class_sections : "teaches"
+
+    teachers {
+        uuid id PK
+        uuid user_id FK
+        string first_name
+        string last_name
+        boolean is_volunteer
+        uuid site_id FK
+        text[] languages_taught
+    }
+
+    class_sections ||--o{ class_enrollments : "has"
+
+    class_sections {
+        uuid id PK
+        uuid site_id FK
+        string name
+        enum level "basic|beginner|intermediate|lets_talk"
+        uuid teacher_id FK
+        int day_of_week
+        time start_time
+        time end_time
+        int max_students
+    }
+
+    class_enrollments ||--o{ class_attendance : "tracks"
+
+    class_enrollments {
+        uuid id PK
+        uuid section_id FK
+        uuid beneficiary_id FK
+        date enrolled_date
+        string status
+        int pre_test_score
+        int post_test_score
+        boolean needs_childcare
+    }
+
+    class_attendance {
+        uuid id PK
+        uuid enrollment_id FK
+        date class_date
+        boolean is_present
+    }
+
+    %% VOLUNTEERS & MENTORS
+    volunteers ||--o{ mentor_team_members : "joins"
+
+    volunteers {
+        uuid id PK
+        string neon_id
+        string first_name
+        string last_name
+        text[] languages_spoken
+        text[] skills
+        date background_check_date
+    }
+
+    mentor_teams ||--o{ mentor_team_members : "has"
+
+    mentor_teams {
+        uuid id PK
+        string name
+        uuid household_id FK
+        date assigned_date
+    }
+
+    mentor_team_members {
+        uuid id PK
+        uuid team_id FK
+        uuid volunteer_id FK
+        string role
+    }
+
+    %% BOARD
+    users ||--o{ board_decisions : "creates"
+    users ||--o{ board_votes : "casts"
+    board_decisions ||--o{ board_votes : "receives"
+
+    board_decisions {
+        uuid id PK
+        uuid created_by_id FK
+        string title
+        text description
+        string category
+        date voting_deadline
+        string status
+    }
+
+    board_votes {
+        uuid id PK
+        uuid decision_id FK
+        uuid user_id FK
+        string vote
+        text comment
+    }
