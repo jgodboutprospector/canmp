@@ -30,7 +30,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   isAdmin: boolean;
   isTeacher: boolean;
-  isCaseManager: boolean;
+  isCoordinator: boolean;
   canManageUsers: boolean;
   canEditBeneficiaries: boolean;
   canViewReports: boolean;

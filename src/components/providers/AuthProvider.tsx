@@ -15,7 +15,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   isAdmin: boolean;
   isTeacher: boolean;
-  isCaseManager: boolean;
+  isCoordinator: boolean;
   canManageUsers: boolean;
   canEditBeneficiaries: boolean;
   canViewReports: boolean;
@@ -94,10 +94,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   // Permission helpers
-  const role = profile?.role || 'viewer';
+  const role: UserRole = profile?.role || 'volunteer';
   const isAdmin = role === 'admin';
   const isTeacher = role === 'teacher';
-  const isCaseManager = role === 'case_manager';
+  const isCoordinator = role === 'coordinator';
   const canManageUsers = hasPermission(role, 'manage_users');
   const canEditBeneficiaries = hasPermission(role, 'edit_beneficiaries');
   const canViewReports = hasPermission(role, 'view_reports');
@@ -112,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut,
     isAdmin,
     isTeacher,
-    isCaseManager,
+    isCoordinator,
     canManageUsers,
     canEditBeneficiaries,
     canViewReports,
