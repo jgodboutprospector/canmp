@@ -76,6 +76,11 @@ export interface Database {
         Insert: Omit<CaseNote, 'id' | 'created_at' | 'updated_at'>;
         Update: Partial<Omit<CaseNote, 'id'>>;
       };
+      user_profiles: {
+        Row: UserProfile;
+        Insert: Omit<UserProfile, 'created_at' | 'updated_at'>;
+        Update: Partial<UserProfile>;
+      };
     };
   };
 }
@@ -105,6 +110,21 @@ export interface User {
   site_id: string | null;
   is_active: boolean;
   auth_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  role: UserRole;
+  teacher_id: string | null;
+  volunteer_id: string | null;
+  avatar_url: string | null;
+  is_active: boolean;
+  last_login: string | null;
   created_at: string;
   updated_at: string;
 }
