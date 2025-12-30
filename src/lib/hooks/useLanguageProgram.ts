@@ -169,7 +169,7 @@ export function useClassAttendance(sectionId: string, date?: string) {
       setLoading(true);
 
       // First get enrollments for this class
-      const { data: enrollments, error: enrollError } = await supabase
+      const { data: enrollments, error: enrollError } = await (supabase as any)
         .from('class_enrollments')
         .select('id')
         .eq('section_id', sectionId)
@@ -178,7 +178,7 @@ export function useClassAttendance(sectionId: string, date?: string) {
       if (enrollError) throw enrollError;
 
       if (enrollments && enrollments.length > 0) {
-        const enrollmentIds = enrollments.map(e => e.id);
+        const enrollmentIds = enrollments.map((e: any) => e.id);
 
         let query = supabase
           .from('class_attendance')
