@@ -8,10 +8,8 @@ import {
   Users,
   GraduationCap,
   UserCheck,
-  Eye,
   Loader2,
   Mail,
-  MoreVertical,
   Edit,
   Trash2,
 } from 'lucide-react';
@@ -74,12 +72,12 @@ export default function UserManagementPage() {
       u.last_name?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const usersByRole = {
+  const usersByRole: Record<UserRole, number> = {
     admin: users.filter((u) => u.role === 'admin').length,
-    case_manager: users.filter((u) => u.role === 'case_manager').length,
+    coordinator: users.filter((u) => u.role === 'coordinator').length,
     teacher: users.filter((u) => u.role === 'teacher').length,
+    board_member: users.filter((u) => u.role === 'board_member').length,
     volunteer: users.filter((u) => u.role === 'volunteer').length,
-    viewer: users.filter((u) => u.role === 'viewer').length,
   };
 
   if (!isAdmin) {
@@ -274,7 +272,7 @@ function AddUserModal({
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [role, setRole] = useState<UserRole>('viewer');
+  const [role, setRole] = useState<UserRole>('volunteer');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
