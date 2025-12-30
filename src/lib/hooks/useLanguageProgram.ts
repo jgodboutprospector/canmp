@@ -24,7 +24,7 @@ export function useTeachers() {
   async function fetchTeachers() {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('teachers')
         .select(`
           *,
@@ -79,7 +79,7 @@ export function useClassSections() {
   async function fetchClasses() {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('class_sections')
         .select(`
           *,
@@ -117,7 +117,7 @@ export function useClassSection(id: string) {
   async function fetchClass() {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('class_sections')
         .select(`
           *,
@@ -180,7 +180,7 @@ export function useClassAttendance(sectionId: string, date?: string) {
       if (enrollments && enrollments.length > 0) {
         const enrollmentIds = enrollments.map((e: any) => e.id);
 
-        let query = supabase
+        let query = (supabase as any)
           .from('class_attendance')
           .select('*')
           .in('enrollment_id', enrollmentIds);
@@ -205,7 +205,7 @@ export function useClassAttendance(sectionId: string, date?: string) {
 
   async function markAttendance(enrollmentId: string, classDate: string, isPresent: boolean) {
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('class_attendance')
         .upsert({
           enrollment_id: enrollmentId,
