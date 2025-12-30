@@ -71,7 +71,7 @@ export async function signOut() {
 
 // Get user profile
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from('user_profiles')
     .select('*')
     .eq('id', userId)
@@ -82,12 +82,12 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
     return null;
   }
 
-  return data;
+  return data as UserProfile;
 }
 
 // Update last login
 export async function updateLastLogin(userId: string) {
-  await supabase
+  await (supabase as any)
     .from('user_profiles')
     .update({ last_login: new Date().toISOString() })
     .eq('id', userId);
