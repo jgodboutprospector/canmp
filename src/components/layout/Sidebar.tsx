@@ -14,6 +14,7 @@ import {
   Calendar,
   HeartHandshake,
   Shield,
+  Gift,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/components/providers/AuthProvider';
@@ -27,6 +28,7 @@ const allNavigation = [
   { name: 'Language Program', href: '/language', icon: GraduationCap, roles: ['admin', 'coordinator', 'teacher'] },
   { name: 'Workforce', href: '/workforce', icon: Briefcase, roles: ['admin', 'coordinator'] },
   { name: 'Mentor Teams', href: '/mentors', icon: HeartHandshake, roles: ['admin', 'coordinator', 'volunteer'] },
+  { name: 'Donations', href: '/donations', icon: Gift, roles: ['admin', 'coordinator', 'volunteer'] },
   { name: 'Events', href: '/events', icon: Calendar, roles: ['admin', 'coordinator', 'teacher', 'volunteer'] },
 ];
 

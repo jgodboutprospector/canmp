@@ -3,9 +3,11 @@
 import { useState } from 'react';
 import { Plus, Search, Building2, MapPin, Home, ChevronRight, Loader2 } from 'lucide-react';
 import { useProperties } from '@/lib/hooks/useProperties';
+import { PropertyDetailModal } from './PropertyDetailModal';
 
 export default function PropertiesList() {
   const [search, setSearch] = useState('');
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
   const { properties: dbProperties, loading, error } = useProperties();
 
   // Transform database properties to display format
@@ -107,6 +109,7 @@ export default function PropertiesList() {
         {filtered.map((property) => (
           <div
             key={property.id}
+            onClick={() => setSelectedPropertyId(property.id)}
             className="card p-5 hover:shadow-md transition-shadow cursor-pointer"
           >
             <div className="flex justify-between items-start mb-4">
@@ -159,6 +162,15 @@ export default function PropertiesList() {
           </div>
         ))}
       </div>
+
+      {/* Property Detail Modal */}
+      {selectedPropertyId && (
+        <PropertyDetailModal
+          isOpen={!!selectedPropertyId}
+          onClose={() => setSelectedPropertyId(null)}
+          propertyId={selectedPropertyId}
+        />
+      )}
     </div>
   );
 }
