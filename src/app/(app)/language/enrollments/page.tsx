@@ -14,9 +14,11 @@ import {
   UserCheck,
   UserX,
   Calendar,
+  Eye,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
+import EnrollmentDetailModal from '@/components/modules/language/EnrollmentDetailModal';
 
 const tabs = [
   { name: 'Classes', href: '/language', icon: BookOpen },
@@ -57,6 +59,7 @@ export default function EnrollmentsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [selectedEnrollmentId, setSelectedEnrollmentId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchEnrollments();
@@ -188,6 +191,7 @@ export default function EnrollmentsPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pre-Test</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Post-Test</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Needs</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -257,6 +261,15 @@ export default function EnrollmentsPage() {
                         )}
                       </div>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <button
+                        onClick={() => setSelectedEnrollmentId(enrollment.id)}
+                        className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-gray-700"
+                        title="View details"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -270,6 +283,16 @@ export default function EnrollmentsPage() {
           </div>
         )}
       </div>
+
+      {/* Enrollment Detail Modal */}
+      {selectedEnrollmentId && (
+        <EnrollmentDetailModal
+          enrollmentId={selectedEnrollmentId}
+          isOpen={!!selectedEnrollmentId}
+          onClose={() => setSelectedEnrollmentId(null)}
+          onSave={fetchEnrollments}
+        />
+      )}
     </div>
   );
 }

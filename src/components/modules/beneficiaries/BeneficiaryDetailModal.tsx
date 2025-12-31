@@ -18,9 +18,10 @@ import {
   AlertTriangle,
   Eye,
   EyeOff,
-  MapPin,
+  Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import ExternalContactsTab from './ExternalContactsTab';
 
 interface Beneficiary {
   id: string;
@@ -79,7 +80,7 @@ export function BeneficiaryDetailModal({
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingNotes, setLoadingNotes] = useState(false);
-  const [activeTab, setActiveTab] = useState<'profile' | 'sensitive' | 'employment' | 'notes'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'contacts' | 'sensitive' | 'employment' | 'notes'>('profile');
   const [newNote, setNewNote] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -233,13 +234,13 @@ export function BeneficiaryDetailModal({
     >
       <div className="px-6 pb-6">
         {/* Tabs */}
-        <div className="flex border-b border-gray-200 mb-4">
-          {(['profile', 'sensitive', 'employment', 'notes'] as const).map((tab) => (
+        <div className="flex border-b border-gray-200 mb-4 overflow-x-auto">
+          {(['profile', 'contacts', 'sensitive', 'employment', 'notes'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={cn(
-                'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors capitalize',
+                'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors capitalize whitespace-nowrap',
                 activeTab === tab
                   ? 'border-canmp-green-500 text-canmp-green-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -461,6 +462,11 @@ export function BeneficiaryDetailModal({
               </div>
             )}
           </div>
+        )}
+
+        {/* Contacts Tab */}
+        {activeTab === 'contacts' && (
+          <ExternalContactsTab beneficiaryId={beneficiaryId} />
         )}
 
         {/* Sensitive Info Tab */}

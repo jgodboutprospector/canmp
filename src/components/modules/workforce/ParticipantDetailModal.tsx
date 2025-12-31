@@ -2,14 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import {
-  X,
   Briefcase,
   Target,
-  Award,
   MessageSquare,
   Plus,
-  Edit2,
-  Trash2,
   Loader2,
   Send,
   User,
@@ -17,12 +13,15 @@ import {
   Calendar,
   MapPin,
   CheckCircle,
-  Clock,
+  FileText,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { format } from 'date-fns';
 import { Modal } from '@/components/ui/Modal';
 import { cn } from '@/lib/utils';
+import FileUpload from '@/components/ui/FileUpload';
+import DocumentList from '@/components/ui/DocumentList';
+import { uploadFile } from '@/lib/storage';
 
 type JobStatus = 'intake' | 'preparing' | 'searching' | 'interviewing' | 'placed' | 'employed';
 
@@ -88,6 +87,21 @@ interface Note {
   } | null;
 }
 
+interface Document {
+  id: string;
+  file_name: string;
+  original_file_name: string;
+  storage_path: string;
+  file_size: number | null;
+  mime_type: string | null;
+  category: string;
+  title: string | null;
+  document_date: string | null;
+  expiry_date: string | null;
+  is_verified: boolean;
+  created_at: string;
+}
+
 const STATUS_COLUMNS: { id: JobStatus; title: string; color: string }[] = [
   { id: 'intake', title: 'Intake', color: 'bg-gray-100' },
   { id: 'preparing', title: 'Preparing', color: 'bg-blue-100' },
@@ -123,9 +137,10 @@ export default function ParticipantDetailModal({
   onClose,
   onStatusChange,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'goals' | 'notes'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'goals' | 'documents' | 'notes'>('overview');
   const [jobHistory, setJobHistory] = useState<JobHistory[]>([]);
   const [careerGoals, setCareerGoals] = useState<CareerGoal[]>([]);
+  const [documents, setDocuments] = useState<Document[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(false);
   const [newNote, setNewNote] = useState('');
@@ -166,7 +181,7 @@ export default function ParticipantDetailModal({
   async function fetchData() {
     setLoading(true);
     try {
-      const [historyRes, goalsRes, notesRes] = await Promise.all([
+      const [historyRes, goalsRes, docsRes, notesRes] = await Promise.all([
         (supabase as any)
           .from('workforce_job_history')
           .select('*')
@@ -178,6 +193,12 @@ export default function ParticipantDetailModal({
           .eq('participant_id', participant.id)
           .order('created_at', { ascending: false }),
         (supabase as any)
+          .from('documents')
+          .select('*')
+          .eq('workforce_participant_id', participant.id)
+          .eq('is_active', true)
+          .order('created_at', { ascending: false }),
+        (supabase as any)
           .from('workforce_notes')
           .select('id, content, note_type, created_at, author:users(first_name, last_name)')
           .eq('participant_id', participant.id)
@@ -186,11 +207,50 @@ export default function ParticipantDetailModal({
 
       setJobHistory(historyRes.data || []);
       setCareerGoals(goalsRes.data || []);
+      setDocuments(docsRes.data || []);
       setNotes(notesRes.data || []);
     } catch (err) {
       console.error('Error fetching participant data:', err);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleDocumentUpload(file: File): Promise<boolean> {
+    const result = await uploadFile(file, 'workforce', participant.id, 'resume');
+    if (!result.success) return false;
+
+    try {
+      const { error } = await (supabase as any).from('documents').insert({
+        file_name: result.fileName,
+        original_file_name: file.name,
+        storage_path: result.path,
+        file_size: file.size,
+        mime_type: file.type,
+        category: 'resume',
+        workforce_participant_id: participant.id,
+      });
+
+      if (error) throw error;
+      await fetchData();
+      return true;
+    } catch (err) {
+      console.error('Error saving document:', err);
+      return false;
+    }
+  }
+
+  async function handleDocumentDelete(documentId: string) {
+    try {
+      const { error } = await (supabase as any)
+        .from('documents')
+        .update({ is_active: false })
+        .eq('id', documentId);
+
+      if (error) throw error;
+      await fetchData();
+    } catch (err) {
+      console.error('Error deleting document:', err);
     }
   }
 
@@ -296,6 +356,7 @@ export default function ParticipantDetailModal({
     { id: 'overview', label: 'Overview', icon: User },
     { id: 'history', label: 'Job History', icon: Briefcase },
     { id: 'goals', label: 'Career Goals', icon: Target },
+    { id: 'documents', label: 'Documents', icon: FileText },
     { id: 'notes', label: 'Notes', icon: MessageSquare },
   ] as const;
 
@@ -793,6 +854,33 @@ export default function ParticipantDetailModal({
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Documents Tab */}
+            {activeTab === 'documents' && (
+              <div className="space-y-4">
+                <p className="text-sm text-gray-500">
+                  Upload resumes, certifications, and other career documents
+                </p>
+
+                <FileUpload
+                  onUpload={handleDocumentUpload}
+                  accept=".pdf,.doc,.docx"
+                  category="resume"
+                  label="Upload Resume or Document"
+                  hint="PDF, DOC, or DOCX files up to 10MB"
+                />
+
+                <div className="mt-6">
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">Uploaded Documents</h4>
+                  <DocumentList
+                    documents={documents}
+                    onDelete={handleDocumentDelete}
+                    showCategory={true}
+                    emptyMessage="No documents uploaded yet"
+                  />
+                </div>
               </div>
             )}
 

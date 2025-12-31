@@ -8,18 +8,16 @@ import {
   Loader2,
   DollarSign,
   FileText,
-  Upload,
-  Download,
   Check,
-  X,
   ChevronLeft,
   ChevronRight,
   Calendar,
-  User,
   Home,
-  Send,
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
+import FileUpload from '@/components/ui/FileUpload';
+import DocumentList from '@/components/ui/DocumentList';
+import { uploadFile } from '@/lib/storage';
 
 interface Lease {
   id: string;
@@ -63,11 +61,17 @@ interface RentLedger {
 
 interface LeaseDocument {
   id: string;
-  document_type: string;
-  document_name: string;
+  file_name: string;
+  original_file_name: string;
   storage_path: string;
+  file_size: number | null;
+  mime_type: string | null;
+  category: string;
+  title: string | null;
   document_date: string | null;
-  uploaded_at: string;
+  expiry_date: string | null;
+  is_verified: boolean;
+  created_at: string;
 }
 
 interface LeaseDetailModalProps {
@@ -179,16 +183,54 @@ export function LeaseDetailModal({ isOpen, onClose, leaseId }: LeaseDetailModalP
   async function fetchDocuments() {
     try {
       const { data, error } = await (supabase as any)
-        .from('lease_documents')
+        .from('documents')
         .select('*')
         .eq('lease_id', leaseId)
         .eq('is_active', true)
-        .order('uploaded_at', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
       setDocuments(data || []);
     } catch (err) {
       console.error('Error fetching documents:', err);
+    }
+  }
+
+  async function handleDocumentUpload(file: File): Promise<boolean> {
+    const result = await uploadFile(file, 'leases', leaseId, 'lease');
+    if (!result.success) return false;
+
+    try {
+      const { error } = await (supabase as any).from('documents').insert({
+        file_name: result.fileName,
+        original_file_name: file.name,
+        storage_path: result.path,
+        file_size: file.size,
+        mime_type: file.type,
+        category: 'lease',
+        lease_id: leaseId,
+      });
+
+      if (error) throw error;
+      await fetchDocuments();
+      return true;
+    } catch (err) {
+      console.error('Error saving document:', err);
+      return false;
+    }
+  }
+
+  async function handleDocumentDelete(documentId: string) {
+    try {
+      const { error } = await (supabase as any)
+        .from('documents')
+        .update({ is_active: false })
+        .eq('id', documentId);
+
+      if (error) throw error;
+      await fetchDocuments();
+    } catch (err) {
+      console.error('Error deleting document:', err);
     }
   }
 
@@ -504,47 +546,30 @@ export function LeaseDetailModal({ isOpen, onClose, leaseId }: LeaseDetailModalP
 
         {/* Documents Tab */}
         {activeTab === 'documents' && (
-          <div>
-            <div className="flex justify-between items-center mb-4">
-              <p className="text-sm text-gray-500">
-                {documents.length} document{documents.length !== 1 ? 's' : ''} uploaded
-              </p>
-              <button className="btn-secondary">
-                <Upload className="w-4 h-4" />
-                Upload Document
-              </button>
-            </div>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-500">
+              Upload lease agreements, amendments, and other lease documents
+            </p>
 
-            {documents.length === 0 ? (
-              <div className="text-center py-8 text-gray-400 border-2 border-dashed rounded-lg">
-                <FileText className="w-8 h-8 mx-auto mb-2" />
-                <p>No documents uploaded yet</p>
-                <p className="text-sm mt-1">Upload lease agreements, amendments, and more</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {documents.map((doc) => (
-                  <div
-                    key={doc.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                  >
-                    <div className="flex items-center gap-3">
-                      <FileText className="w-5 h-5 text-gray-400" />
-                      <div>
-                        <p className="font-medium text-gray-900">{doc.document_name}</p>
-                        <p className="text-xs text-gray-500 capitalize">
-                          {doc.document_type.replace('_', ' ')} •{' '}
-                          {format(new Date(doc.uploaded_at), 'MMM d, yyyy')}
-                        </p>
-                      </div>
-                    </div>
-                    <button className="p-2 hover:bg-gray-200 rounded-lg">
-                      <Download className="w-4 h-4 text-gray-500" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+            <FileUpload
+              onUpload={handleDocumentUpload}
+              accept=".pdf"
+              category="lease"
+              label="Upload Lease Document"
+              hint="PDF files only, up to 10MB"
+            />
+
+            <div className="mt-6">
+              <h4 className="text-sm font-medium text-gray-700 mb-3">
+                Uploaded Documents ({documents.length})
+              </h4>
+              <DocumentList
+                documents={documents}
+                onDelete={handleDocumentDelete}
+                showCategory={true}
+                emptyMessage="No lease documents uploaded yet"
+              />
+            </div>
           </div>
         )}
 
