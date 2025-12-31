@@ -7,20 +7,14 @@ import {
   Briefcase,
   GraduationCap,
   Building2,
-  Users,
   Loader2,
   Plus,
-  ChevronRight,
   MessageSquare,
   GripVertical,
-  X,
-  Send,
-  User,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
-import { format } from 'date-fns';
-import { Modal } from '@/components/ui/Modal';
+import ParticipantDetailModal from '@/components/modules/workforce/ParticipantDetailModal';
 
 const tabs = [
   { name: 'Kanban', href: '/workforce', icon: Briefcase },
@@ -36,23 +30,19 @@ interface Participant {
   target_occupation: string | null;
   current_employer: string | null;
   current_job_title: string | null;
+  current_hourly_wage: number | null;
   notes: string | null;
+  career_summary: string | null;
+  preferred_industries: string[] | null;
+  preferred_schedule: string | null;
+  strengths: string[] | null;
+  areas_for_growth: string[] | null;
   beneficiary: {
     id: string;
     first_name: string;
     last_name: string;
     phone: string | null;
-  } | null;
-}
-
-interface Note {
-  id: string;
-  content: string;
-  note_type: string;
-  created_at: string;
-  author: {
-    first_name: string;
-    last_name: string;
+    email: string | null;
   } | null;
 }
 
@@ -71,13 +61,7 @@ export default function WorkforcePage() {
   const [loading, setLoading] = useState(true);
   const [dragging, setDragging] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<JobStatus | null>(null);
-
-  // Modal state
   const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null);
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [loadingNotes, setLoadingNotes] = useState(false);
-  const [newNote, setNewNote] = useState('');
-  const [savingNote, setSavingNote] = useState(false);
 
   useEffect(() => {
     fetchParticipants();
@@ -88,8 +72,10 @@ export default function WorkforcePage() {
       const { data, error } = await (supabase as any)
         .from('workforce_participants')
         .select(`
-          id, status, target_occupation, current_employer, current_job_title, notes,
-          beneficiary:beneficiaries(id, first_name, last_name, phone)
+          id, status, target_occupation, current_employer, current_job_title,
+          current_hourly_wage, notes, career_summary, preferred_industries,
+          preferred_schedule, strengths, areas_for_growth,
+          beneficiary:beneficiaries(id, first_name, last_name, phone, email)
         `)
         .eq('is_active', true)
         .order('created_at', { ascending: false });
@@ -123,63 +109,14 @@ export default function WorkforcePage() {
       setParticipants((prev) =>
         prev.map((p) => (p.id === participantId ? { ...p, status: newStatus } : p))
       );
+
+      // Update selected participant if open
+      if (selectedParticipant?.id === participantId) {
+        setSelectedParticipant({ ...selectedParticipant, status: newStatus });
+      }
     } catch (err) {
       console.error('Error updating status:', err);
     }
-  }
-
-  async function fetchNotes(participantId: string) {
-    setLoadingNotes(true);
-    try {
-      const { data, error } = await (supabase as any)
-        .from('workforce_notes')
-        .select(`
-          id, content, note_type, created_at,
-          author:users(first_name, last_name)
-        `)
-        .eq('participant_id', participantId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setNotes(data || []);
-    } catch (err) {
-      console.error('Error fetching notes:', err);
-    } finally {
-      setLoadingNotes(false);
-    }
-  }
-
-  async function addNote() {
-    if (!selectedParticipant || !newNote.trim()) return;
-    setSavingNote(true);
-
-    try {
-      const { error } = await (supabase as any).from('workforce_notes').insert({
-        participant_id: selectedParticipant.id,
-        content: newNote.trim(),
-        note_type: 'general',
-      });
-
-      if (error) throw error;
-
-      setNewNote('');
-      await fetchNotes(selectedParticipant.id);
-    } catch (err) {
-      console.error('Error adding note:', err);
-    } finally {
-      setSavingNote(false);
-    }
-  }
-
-  function openParticipantModal(participant: Participant) {
-    setSelectedParticipant(participant);
-    fetchNotes(participant.id);
-  }
-
-  function closeModal() {
-    setSelectedParticipant(null);
-    setNotes([]);
-    setNewNote('');
   }
 
   // Drag and drop handlers
@@ -259,6 +196,19 @@ export default function WorkforcePage() {
           </button>
         </div>
 
+        {/* Stats */}
+        <div className="grid grid-cols-6 gap-2 mb-6">
+          {STATUS_COLUMNS.map((column) => {
+            const count = getParticipantsByStatus(column.id).length;
+            return (
+              <div key={column.id} className={`rounded-lg p-3 ${column.color}`}>
+                <p className="text-sm font-medium text-gray-700">{column.title}</p>
+                <p className="text-2xl font-semibold text-gray-900">{count}</p>
+              </div>
+            );
+          })}
+        </div>
+
         {/* Kanban Board */}
         {loading ? (
           <div className="flex items-center justify-center p-12">
@@ -311,7 +261,7 @@ export default function WorkforcePage() {
                               {participant.beneficiary?.last_name}
                             </h4>
                             <button
-                              onClick={() => openParticipantModal(participant)}
+                              onClick={() => setSelectedParticipant(participant)}
                               className="p-1 hover:bg-gray-100 rounded"
                             >
                               <MessageSquare className="w-4 h-4 text-gray-400" />
@@ -346,144 +296,12 @@ export default function WorkforcePage() {
 
       {/* Participant Detail Modal */}
       {selectedParticipant && (
-        <Modal
+        <ParticipantDetailModal
+          participant={selectedParticipant}
           isOpen={!!selectedParticipant}
-          onClose={closeModal}
-          title={`${selectedParticipant.beneficiary?.first_name} ${selectedParticipant.beneficiary?.last_name}`}
-          size="lg"
-        >
-          <div className="px-6 pb-6">
-            {/* Participant Info */}
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <div className="bg-gray-50 rounded-lg p-3">
-                <p className="text-xs text-gray-500 mb-1">Current Status</p>
-                <p className="font-medium text-gray-900">
-                  {STATUS_COLUMNS.find((c) => c.id === selectedParticipant.status)?.title}
-                </p>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-3">
-                <p className="text-xs text-gray-500 mb-1">Target Occupation</p>
-                <p className="font-medium text-gray-900">
-                  {selectedParticipant.target_occupation || 'Not specified'}
-                </p>
-              </div>
-              {selectedParticipant.current_employer && (
-                <>
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-xs text-gray-500 mb-1">Current Employer</p>
-                    <p className="font-medium text-gray-900">
-                      {selectedParticipant.current_employer}
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-xs text-gray-500 mb-1">Job Title</p>
-                    <p className="font-medium text-gray-900">
-                      {selectedParticipant.current_job_title || '-'}
-                    </p>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Move to Status */}
-            <div className="mb-6">
-              <p className="text-sm font-medium text-gray-700 mb-2">Move to Status</p>
-              <div className="flex flex-wrap gap-2">
-                {STATUS_COLUMNS.map((column) => (
-                  <button
-                    key={column.id}
-                    onClick={() => {
-                      updateParticipantStatus(selectedParticipant.id, column.id);
-                      setSelectedParticipant({
-                        ...selectedParticipant,
-                        status: column.id,
-                      });
-                    }}
-                    className={cn(
-                      'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
-                      selectedParticipant.status === column.id
-                        ? 'bg-canmp-green-500 text-white'
-                        : `${column.color} text-gray-700 hover:ring-2 hover:ring-canmp-green-300`
-                    )}
-                  >
-                    {column.title}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Notes Section */}
-            <div>
-              <p className="text-sm font-medium text-gray-700 mb-2">Notes & Activity</p>
-
-              {/* Add Note */}
-              <div className="flex gap-2 mb-4">
-                <input
-                  type="text"
-                  value={newNote}
-                  onChange={(e) => setNewNote(e.target.value)}
-                  placeholder="Add a note..."
-                  className="input flex-1"
-                  onKeyDown={(e) => e.key === 'Enter' && addNote()}
-                />
-                <button
-                  onClick={addNote}
-                  disabled={savingNote || !newNote.trim()}
-                  className="btn-primary px-4"
-                >
-                  {savingNote ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Send className="w-4 h-4" />
-                  )}
-                </button>
-              </div>
-
-              {/* Notes List */}
-              {loadingNotes ? (
-                <div className="flex items-center justify-center py-4">
-                  <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-                </div>
-              ) : notes.length === 0 ? (
-                <p className="text-center text-gray-400 py-4 text-sm">No notes yet</p>
-              ) : (
-                <div className="max-h-60 overflow-y-auto space-y-3">
-                  {notes.map((note) => (
-                    <div
-                      key={note.id}
-                      className={cn(
-                        'p-3 rounded-lg text-sm',
-                        note.note_type === 'status_change'
-                          ? 'bg-blue-50 border-l-4 border-blue-400'
-                          : 'bg-gray-50'
-                      )}
-                    >
-                      <p className="text-gray-900">{note.content}</p>
-                      <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                        <User className="w-3 h-3" />
-                        <span>
-                          {note.author?.first_name} {note.author?.last_name}
-                        </span>
-                        <span>•</span>
-                        <span>{format(new Date(note.created_at), 'MMM d, h:mm a')}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="mt-6 pt-4 border-t border-gray-200 flex justify-end">
-              <button
-                onClick={closeModal}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </Modal>
+          onClose={() => setSelectedParticipant(null)}
+          onStatusChange={updateParticipantStatus}
+        />
       )}
     </div>
   );
