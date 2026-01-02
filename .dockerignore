@@ -44,3 +44,9 @@ coverage
 # Misc
 .DS_Store
 *.log
+
+# SSL/Certbot (server-side only)
+certbot
+
+# Database scripts and CSVs
+database/*.csv
