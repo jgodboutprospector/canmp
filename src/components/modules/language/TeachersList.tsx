@@ -3,10 +3,12 @@
 import { useState } from 'react';
 import { Plus, Search, GraduationCap, Mail, Phone, MapPin, Loader2 } from 'lucide-react';
 import { useTeachers } from '@/lib/hooks/useLanguageProgram';
+import { AddTeacherModal } from './AddTeacherModal';
 
 export default function TeachersList() {
   const [search, setSearch] = useState('');
-  const { teachers, loading, error } = useTeachers();
+  const [showAddModal, setShowAddModal] = useState(false);
+  const { teachers, loading, error, refetch } = useTeachers();
 
   const filtered = teachers.filter(
     (t) =>
@@ -45,7 +47,7 @@ export default function TeachersList() {
           </h1>
           <p className="text-sm text-gray-500">Manage ESL teachers and volunteers</p>
         </div>
-        <button className="btn-primary">
+        <button onClick={() => setShowAddModal(true)} className="btn-primary">
           <Plus className="w-4 h-4" />
           Add Teacher
         </button>
@@ -149,6 +151,13 @@ export default function TeachersList() {
           </div>
         )}
       </div>
+
+      {/* Add Teacher Modal */}
+      <AddTeacherModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSuccess={refetch}
+      />
     </div>
   );
 }

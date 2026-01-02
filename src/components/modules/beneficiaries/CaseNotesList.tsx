@@ -14,6 +14,9 @@ import {
   Filter,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { AddCaseNoteModal } from './AddCaseNoteModal';
+import { EditCaseNoteModal } from './EditCaseNoteModal';
+import type { CaseNote as CaseNoteType } from '@/types/database';
 
 interface CaseNote {
   id: string;
@@ -63,6 +66,8 @@ export default function CaseNotesList() {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [showFollowupsOnly, setShowFollowupsOnly] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [selectedNote, setSelectedNote] = useState<CaseNote | null>(null);
 
   useEffect(() => {
     fetchNotes();
@@ -138,7 +143,7 @@ export default function CaseNotesList() {
             Track interactions and follow-ups with households
           </p>
         </div>
-        <button className="btn-primary">
+        <button onClick={() => setShowAddModal(true)} className="btn-primary">
           <Plus className="w-4 h-4" />
           Add Note
         </button>
@@ -227,7 +232,8 @@ export default function CaseNotesList() {
           return (
             <div
               key={note.id}
-              className={`card p-5 ${isOverdue ? 'border-l-4 border-l-red-500' : ''}`}
+              onClick={() => setSelectedNote(note)}
+              className={`card p-5 cursor-pointer hover:shadow-md transition-shadow ${isOverdue ? 'border-l-4 border-l-red-500' : ''}`}
             >
               <div className="flex justify-between items-start">
                 <div className="flex-1">
@@ -325,6 +331,27 @@ export default function CaseNotesList() {
           </div>
         )}
       </div>
+
+      {/* Add Case Note Modal */}
+      <AddCaseNoteModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSuccess={fetchNotes}
+      />
+
+      {/* Edit Case Note Modal */}
+      {selectedNote && (
+        <EditCaseNoteModal
+          isOpen={!!selectedNote}
+          onClose={() => setSelectedNote(null)}
+          onSuccess={fetchNotes}
+          note={selectedNote as CaseNoteType & {
+            household?: { name: string } | null;
+            beneficiary?: { first_name: string; last_name: string } | null;
+            author?: { first_name: string; last_name: string } | null;
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Plus, Search, ChevronRight, AlertTriangle, Clock, CheckCircle } from 'lucide-react';
 import { cn, formatDate, getWorkOrderStatusLabel, getStatusBadgeVariant, getPriorityBadgeVariant, getCategoryEmoji } from '@/lib/utils';
+import { AddWorkOrderModal } from './AddWorkOrderModal';
 
 // Mock data - will be replaced with Supabase query
 const workOrders = [
@@ -58,6 +59,7 @@ const workOrders = [
 
 export default function WorkOrdersList() {
   const [search, setSearch] = useState('');
+  const [showAddModal, setShowAddModal] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all');
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
 
@@ -112,7 +114,7 @@ export default function WorkOrdersList() {
               Kanban
             </button>
           </div>
-          <button className="btn-primary">
+          <button onClick={() => setShowAddModal(true)} className="btn-primary">
             <Plus className="w-4 h-4" />
             New Work Order
           </button>
@@ -291,6 +293,16 @@ export default function WorkOrdersList() {
           })}
         </div>
       )}
+
+      {/* Add Work Order Modal */}
+      <AddWorkOrderModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSuccess={() => {
+          // TODO: Refetch work orders when connected to Supabase
+          setShowAddModal(false);
+        }}
+      />
     </div>
   );
 }

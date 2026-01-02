@@ -19,6 +19,7 @@ import {
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { BeneficiaryDetailModal } from '@/components/modules/beneficiaries/BeneficiaryDetailModal';
+import { AddBeneficiaryModal } from '@/components/modules/beneficiaries/AddBeneficiaryModal';
 import { format } from 'date-fns';
 
 const tabs = [
@@ -48,6 +49,7 @@ export default function IndividualsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   useEffect(() => {
     fetchBeneficiaries();
@@ -119,7 +121,7 @@ export default function IndividualsPage() {
               View and manage individual beneficiary records
             </p>
           </div>
-          <button className="btn-primary">
+          <button onClick={() => setShowAddModal(true)} className="btn-primary">
             <Plus className="w-4 h-4" />
             Add Individual
           </button>
@@ -299,6 +301,13 @@ export default function IndividualsPage() {
           onSave={fetchBeneficiaries}
         />
       )}
+
+      {/* Add Beneficiary Modal */}
+      <AddBeneficiaryModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSuccess={fetchBeneficiaries}
+      />
     </div>
   );
 }

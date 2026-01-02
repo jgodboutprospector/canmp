@@ -21,6 +21,7 @@ import {
 } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { LeaseDetailModal } from './LeaseDetailModal';
+import { AddLeaseModal } from './AddLeaseModal';
 
 interface Lease {
   id: string;
@@ -52,6 +53,7 @@ export default function LeasesList() {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [selectedLeaseId, setSelectedLeaseId] = useState<string | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   useEffect(() => {
     fetchLeases();
@@ -117,7 +119,7 @@ export default function LeasesList() {
             Manage tenant leases and bridge program progress
           </p>
         </div>
-        <button className="btn-primary">
+        <button onClick={() => setShowAddModal(true)} className="btn-primary">
           <Plus className="w-4 h-4" />
           New Lease
         </button>
@@ -285,6 +287,13 @@ export default function LeasesList() {
           </div>
         )}
       </div>
+
+      {/* Add Lease Modal */}
+      <AddLeaseModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSuccess={fetchLeases}
+      />
 
       {/* Lease Detail Modal */}
       {selectedLeaseId && (

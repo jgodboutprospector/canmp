@@ -4,11 +4,13 @@ import { useState } from 'react';
 import { Plus, Search, Building2, MapPin, Home, ChevronRight, Loader2 } from 'lucide-react';
 import { useProperties } from '@/lib/hooks/useProperties';
 import { PropertyDetailModal } from './PropertyDetailModal';
+import { AddPropertyModal } from './AddPropertyModal';
 
 export default function PropertiesList() {
   const [search, setSearch] = useState('');
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
-  const { properties: dbProperties, loading, error } = useProperties();
+  const [showAddModal, setShowAddModal] = useState(false);
+  const { properties: dbProperties, loading, error, refetch } = useProperties();
 
   // Transform database properties to display format
   const properties = dbProperties.map((p) => {
@@ -64,7 +66,7 @@ export default function PropertiesList() {
           <h1 className="text-xl font-semibold text-gray-900" style={{ fontFamily: 'DM Sans, sans-serif' }}>Properties</h1>
           <p className="text-sm text-gray-500">Manage CANMP properties and units</p>
         </div>
-        <button className="btn-primary">
+        <button onClick={() => setShowAddModal(true)} className="btn-primary">
           <Plus className="w-4 h-4" />
           Add Property
         </button>
@@ -162,6 +164,13 @@ export default function PropertiesList() {
           </div>
         ))}
       </div>
+
+      {/* Add Property Modal */}
+      <AddPropertyModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSuccess={refetch}
+      />
 
       {/* Property Detail Modal */}
       {selectedPropertyId && (

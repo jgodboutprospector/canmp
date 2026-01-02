@@ -3,10 +3,12 @@
 import { useState } from 'react';
 import { Plus, Search, Users, Heart, UserPlus, Calendar, Loader2, ChevronRight } from 'lucide-react';
 import { useMentorTeams } from '@/lib/hooks/useMentorTeams';
+import { AddMentorTeamModal } from './AddMentorTeamModal';
 
 export default function MentorTeamsList() {
   const [search, setSearch] = useState('');
-  const { teams, loading, error } = useMentorTeams();
+  const [showAddModal, setShowAddModal] = useState(false);
+  const { teams, loading, error, refetch } = useMentorTeams();
 
   const filtered = teams.filter(
     (t) =>
@@ -53,7 +55,7 @@ export default function MentorTeamsList() {
           </h1>
           <p className="text-sm text-gray-500">Volunteer teams supporting refugee families</p>
         </div>
-        <button className="btn-primary">
+        <button onClick={() => setShowAddModal(true)} className="btn-primary">
           <Plus className="w-4 h-4" />
           Create Team
         </button>
@@ -185,6 +187,13 @@ export default function MentorTeamsList() {
           </div>
         )}
       </div>
+
+      {/* Add Mentor Team Modal */}
+      <AddMentorTeamModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSuccess={refetch}
+      />
     </div>
   );
 }

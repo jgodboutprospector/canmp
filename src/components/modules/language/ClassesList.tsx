@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Plus, Search, BookOpen, Clock, MapPin, Users, Loader2, ChevronRight } from 'lucide-react';
 import { useClassSections } from '@/lib/hooks/useLanguageProgram';
+import { AddClassModal } from './AddClassModal';
 
 const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -15,7 +16,8 @@ const levelColors: Record<string, string> = {
 
 export default function ClassesList() {
   const [search, setSearch] = useState('');
-  const { classes, loading, error } = useClassSections();
+  const [showAddModal, setShowAddModal] = useState(false);
+  const { classes, loading, error, refetch } = useClassSections();
 
   const filtered = classes.filter(
     (c) =>
@@ -60,7 +62,7 @@ export default function ClassesList() {
           </h1>
           <p className="text-sm text-gray-500">Manage ESL class sections and schedules</p>
         </div>
-        <button className="btn-primary">
+        <button onClick={() => setShowAddModal(true)} className="btn-primary">
           <Plus className="w-4 h-4" />
           Add Class
         </button>
@@ -181,6 +183,13 @@ export default function ClassesList() {
           </div>
         )}
       </div>
+
+      {/* Add Class Modal */}
+      <AddClassModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSuccess={refetch}
+      />
     </div>
   );
 }

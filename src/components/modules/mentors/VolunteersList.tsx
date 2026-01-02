@@ -14,10 +14,12 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { useVolunteers } from '@/lib/hooks/useMentorTeams';
+import { AddVolunteerModal } from './AddVolunteerModal';
 
 export default function VolunteersList() {
   const [search, setSearch] = useState('');
-  const { volunteers, loading, error } = useVolunteers();
+  const [showAddModal, setShowAddModal] = useState(false);
+  const { volunteers, loading, error, refetch } = useVolunteers();
 
   const filtered = volunteers.filter((v) => {
     const fullName = `${v.first_name} ${v.last_name}`.toLowerCase();
@@ -67,7 +69,7 @@ export default function VolunteersList() {
             Manage volunteers supporting refugee families
           </p>
         </div>
-        <button className="btn-primary">
+        <button onClick={() => setShowAddModal(true)} className="btn-primary">
           <Plus className="w-4 h-4" />
           Add Volunteer
         </button>
@@ -218,6 +220,13 @@ export default function VolunteersList() {
             : 'No volunteers registered yet. Add your first volunteer to get started.'}
         </div>
       )}
+
+      {/* Add Volunteer Modal */}
+      <AddVolunteerModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSuccess={refetch}
+      />
     </div>
   );
 }
