@@ -16,6 +16,7 @@ import {
   Shield,
   Gift,
   DollarSign,
+  ClipboardList,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/components/providers/AuthProvider';
@@ -31,6 +32,7 @@ const allNavigation = [
   { name: 'Mentor Teams', href: '/mentors', icon: HeartHandshake, roles: ['admin', 'coordinator', 'volunteer'] },
   { name: 'Donations', href: '/donations', icon: Gift, roles: ['admin', 'coordinator', 'volunteer'] },
   { name: 'Events', href: '/events', icon: Calendar, roles: ['admin', 'coordinator', 'teacher', 'volunteer'] },
+  { name: 'Tasks', href: '/tasks', icon: ClipboardList, roles: ['admin', 'coordinator', 'teacher', 'volunteer'] },
   { name: 'Financial', href: '/financial', icon: DollarSign, roles: ['admin', 'coordinator', 'board_member'] },
 ];
 
