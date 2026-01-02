@@ -15,10 +15,13 @@ import {
 } from 'lucide-react';
 import { useVolunteers } from '@/lib/hooks/useMentorTeams';
 import { AddVolunteerModal } from './AddVolunteerModal';
+import { VolunteerDetailModal } from './VolunteerDetailModal';
+import type { Volunteer } from '@/types/database';
 
 export default function VolunteersList() {
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [selectedVolunteer, setSelectedVolunteer] = useState<Volunteer | null>(null);
   const { volunteers, loading, error, refetch } = useVolunteers();
 
   const filtered = volunteers.filter((v) => {
@@ -114,6 +117,7 @@ export default function VolunteersList() {
         {filtered.map((volunteer) => (
           <div
             key={volunteer.id}
+            onClick={() => setSelectedVolunteer(volunteer)}
             className="card p-5 hover:shadow-md transition-shadow cursor-pointer"
           >
             <div className="flex items-start gap-4">
@@ -227,6 +231,18 @@ export default function VolunteersList() {
         onClose={() => setShowAddModal(false)}
         onSuccess={refetch}
       />
+
+      {/* Volunteer Detail Modal */}
+      {selectedVolunteer && (
+        <VolunteerDetailModal
+          volunteer={selectedVolunteer}
+          onClose={() => setSelectedVolunteer(null)}
+          onUpdate={() => {
+            refetch();
+            setSelectedVolunteer(null);
+          }}
+        />
+      )}
     </div>
   );
 }

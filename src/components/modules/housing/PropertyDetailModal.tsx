@@ -72,6 +72,7 @@ export function PropertyDetailModal({ isOpen, onClose, propertyId }: PropertyDet
   const [newNote, setNewNote] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [editingDetails, setEditingDetails] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Property>>({});
 
   useEffect(() => {
@@ -196,70 +197,250 @@ export function PropertyDetailModal({ isOpen, onClose, propertyId }: PropertyDet
         {/* Details Tab */}
         {activeTab === 'details' && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
-                  <MapPin className="w-3 h-3" />
-                  Address
+            {!editingDetails ? (
+              <>
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setEditingDetails(true)}
+                    className="text-sm text-canmp-green-600 hover:underline"
+                  >
+                    Edit Property Details
+                  </button>
                 </div>
-                <p className="font-medium text-gray-900">
-                  {property.address_street}
-                  <br />
-                  {property.address_city}, {property.address_state} {property.address_zip}
-                </p>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
-                  <Building2 className="w-3 h-3" />
-                  Property Type
-                </div>
-                <p className="font-medium text-gray-900">
-                  {property.property_type === 'canmp_owned' ? 'CANMP Owned' : 'Master Lease'}
-                </p>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
-                  <Home className="w-3 h-3" />
-                  Total Units
-                </div>
-                <p className="font-medium text-gray-900">{property.total_units}</p>
-              </div>
-              {property.property_type === 'master_lease' && (
-                <>
+                <div className="grid grid-cols-2 gap-4">
                   <div className="bg-gray-50 rounded-lg p-3">
                     <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
-                      <Calendar className="w-3 h-3" />
-                      Lease Period
+                      <Building2 className="w-3 h-3" />
+                      Property Name
+                    </div>
+                    <p className="font-medium text-gray-900">{property.name}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                      <Building2 className="w-3 h-3" />
+                      Property Type
                     </div>
                     <p className="font-medium text-gray-900">
-                      {property.master_lease_start
-                        ? format(new Date(property.master_lease_start), 'MMM d, yyyy')
-                        : 'Not set'}{' '}
-                      -{' '}
-                      {property.master_lease_end
-                        ? format(new Date(property.master_lease_end), 'MMM d, yyyy')
-                        : 'Not set'}
+                      {property.property_type === 'canmp_owned' ? 'CANMP Owned' : 'Master Lease'}
+                    </p>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3 col-span-2">
+                    <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                      <MapPin className="w-3 h-3" />
+                      Address
+                    </div>
+                    <p className="font-medium text-gray-900">
+                      {property.address_street}
+                      <br />
+                      {property.address_city}, {property.address_state} {property.address_zip}
                     </p>
                   </div>
                   <div className="bg-gray-50 rounded-lg p-3">
                     <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
-                      <DollarSign className="w-3 h-3" />
-                      Master Lease Rent
+                      <Home className="w-3 h-3" />
+                      Total Units
                     </div>
-                    <p className="font-medium text-gray-900">
-                      {property.master_lease_rent
-                        ? `$${property.master_lease_rent.toLocaleString()}/mo`
-                        : 'Not set'}
-                    </p>
+                    <p className="font-medium text-gray-900">{property.total_units}</p>
                   </div>
-                </>
-              )}
-            </div>
+                  {property.property_type === 'master_lease' && (
+                    <>
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                          <Calendar className="w-3 h-3" />
+                          Lease Period
+                        </div>
+                        <p className="font-medium text-gray-900">
+                          {property.master_lease_start
+                            ? format(new Date(property.master_lease_start), 'MMM d, yyyy')
+                            : 'Not set'}{' '}
+                          -{' '}
+                          {property.master_lease_end
+                            ? format(new Date(property.master_lease_end), 'MMM d, yyyy')
+                            : 'Not set'}
+                        </p>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                          <DollarSign className="w-3 h-3" />
+                          Master Lease Rent
+                        </div>
+                        <p className="font-medium text-gray-900">
+                          {property.master_lease_rent
+                            ? `$${property.master_lease_rent.toLocaleString()}/mo`
+                            : 'Not set'}
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
 
-            {property.notes && (
-              <div className="bg-yellow-50 rounded-lg p-3 mt-4">
-                <p className="text-xs text-yellow-700 font-medium mb-1">Property Notes</p>
-                <p className="text-sm text-gray-700">{property.notes}</p>
+                {property.notes && (
+                  <div className="bg-yellow-50 rounded-lg p-3 mt-4">
+                    <p className="text-xs text-yellow-700 font-medium mb-1">Property Notes</p>
+                    <p className="text-sm text-gray-700">{property.notes}</p>
+                  </div>
+                )}
+              </>
+            ) : (
+              // Edit Property Details Form
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Property Name
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.name || ''}
+                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                      className="input"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Property Type
+                    </label>
+                    <select
+                      value={editForm.property_type || ''}
+                      onChange={(e) => setEditForm({ ...editForm, property_type: e.target.value })}
+                      className="input"
+                    >
+                      <option value="canmp_owned">CANMP Owned</option>
+                      <option value="master_lease">Master Lease</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Street Address
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.address_street || ''}
+                    onChange={(e) => setEditForm({ ...editForm, address_street: e.target.value })}
+                    className="input"
+                  />
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                    <input
+                      type="text"
+                      value={editForm.address_city || ''}
+                      onChange={(e) => setEditForm({ ...editForm, address_city: e.target.value })}
+                      className="input"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
+                    <input
+                      type="text"
+                      value={editForm.address_state || ''}
+                      onChange={(e) => setEditForm({ ...editForm, address_state: e.target.value })}
+                      className="input"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">ZIP</label>
+                    <input
+                      type="text"
+                      value={editForm.address_zip || ''}
+                      onChange={(e) => setEditForm({ ...editForm, address_zip: e.target.value })}
+                      className="input"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Total Units
+                  </label>
+                  <input
+                    type="number"
+                    value={editForm.total_units || ''}
+                    onChange={(e) => setEditForm({ ...editForm, total_units: parseInt(e.target.value) || 0 })}
+                    className="input w-32"
+                    min="1"
+                  />
+                </div>
+
+                {editForm.property_type === 'master_lease' && (
+                  <div className="border-t border-gray-200 pt-4">
+                    <h4 className="text-sm font-medium text-gray-700 mb-3">Master Lease Details</h4>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Lease Start
+                        </label>
+                        <input
+                          type="date"
+                          value={editForm.master_lease_start || ''}
+                          onChange={(e) => setEditForm({ ...editForm, master_lease_start: e.target.value })}
+                          className="input"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Lease End
+                        </label>
+                        <input
+                          type="date"
+                          value={editForm.master_lease_end || ''}
+                          onChange={(e) => setEditForm({ ...editForm, master_lease_end: e.target.value })}
+                          className="input"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Monthly Rent
+                        </label>
+                        <input
+                          type="number"
+                          value={editForm.master_lease_rent || ''}
+                          onChange={(e) => setEditForm({ ...editForm, master_lease_rent: parseFloat(e.target.value) || 0 })}
+                          className="input"
+                          min="0"
+                          step="0.01"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Property Notes
+                  </label>
+                  <textarea
+                    value={editForm.notes || ''}
+                    onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                    className="input"
+                    rows={3}
+                  />
+                </div>
+
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={() => {
+                      setEditingDetails(false);
+                      setEditForm(property);
+                    }}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      saveProperty();
+                      setEditingDetails(false);
+                    }}
+                    className="btn-primary"
+                  >
+                    Save Changes
+                  </button>
+                </div>
               </div>
             )}
           </div>

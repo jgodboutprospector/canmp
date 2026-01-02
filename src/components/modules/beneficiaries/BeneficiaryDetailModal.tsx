@@ -21,6 +21,7 @@ import {
   Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/components/providers/AuthProvider';
 import ExternalContactsTab from './ExternalContactsTab';
 
 interface Beneficiary {
@@ -76,6 +77,7 @@ export function BeneficiaryDetailModal({
   beneficiaryId,
   onSave,
 }: BeneficiaryDetailModalProps) {
+  const { profile } = useAuth();
   const [beneficiary, setBeneficiary] = useState<Beneficiary | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
@@ -143,12 +145,13 @@ export function BeneficiaryDetailModal({
   }
 
   async function addNote() {
-    if (!newNote.trim()) return;
+    if (!newNote.trim() || !profile?.id) return;
     setSavingNote(true);
 
     try {
       const { error } = await (supabase as any).from('beneficiary_notes').insert({
         beneficiary_id: beneficiaryId,
+        author_id: profile.id,
         content: newNote.trim(),
         note_type: 'general',
       });

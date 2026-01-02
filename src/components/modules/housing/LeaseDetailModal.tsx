@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Calendar,
   Home,
+  Edit2,
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import FileUpload from '@/components/ui/FileUpload';
@@ -102,6 +103,18 @@ export function LeaseDetailModal({ isOpen, onClose, leaseId }: LeaseDetailModalP
   const [currentEntry, setCurrentEntry] = useState<RentLedger | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Lease editing state
+  const [editingLease, setEditingLease] = useState(false);
+  const [leaseForm, setLeaseForm] = useState({
+    monthly_rent: 0,
+    subsidy_amount: 0,
+    start_date: '',
+    end_date: '',
+    status: '',
+    lease_type: '',
+    notes: '',
+  });
+
   // Payment entry form
   const [paymentForm, setPaymentForm] = useState({
     amount_collected_from_tenant: 0,
@@ -158,10 +171,58 @@ export function LeaseDetailModal({ isOpen, onClose, leaseId }: LeaseDetailModalP
 
       if (error) throw error;
       setLease(data);
+      // Populate the edit form
+      setLeaseForm({
+        monthly_rent: data.monthly_rent || 0,
+        subsidy_amount: data.subsidy_amount || 0,
+        start_date: data.start_date || '',
+        end_date: data.end_date || '',
+        status: data.status || 'active',
+        lease_type: data.lease_type || 'canmp_direct',
+        notes: data.notes || '',
+      });
     } catch (err) {
       console.error('Error fetching lease:', err);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function saveLease() {
+    if (!lease) return;
+    setSaving(true);
+    try {
+      const { error } = await (supabase as any)
+        .from('leases')
+        .update({
+          monthly_rent: leaseForm.monthly_rent,
+          subsidy_amount: leaseForm.subsidy_amount,
+          start_date: leaseForm.start_date,
+          end_date: leaseForm.end_date || null,
+          status: leaseForm.status,
+          lease_type: leaseForm.lease_type,
+          notes: leaseForm.notes || null,
+        })
+        .eq('id', leaseId);
+
+      if (error) throw error;
+
+      // Update local state
+      setLease({
+        ...lease,
+        monthly_rent: leaseForm.monthly_rent,
+        subsidy_amount: leaseForm.subsidy_amount,
+        tenant_pays: leaseForm.monthly_rent - leaseForm.subsidy_amount,
+        start_date: leaseForm.start_date,
+        end_date: leaseForm.end_date || null,
+        status: leaseForm.status,
+        lease_type: leaseForm.lease_type,
+      });
+      setEditingLease(false);
+    } catch (err) {
+      console.error('Error saving lease:', err);
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -327,59 +388,218 @@ export function LeaseDetailModal({ isOpen, onClose, leaseId }: LeaseDetailModalP
         {/* Overview Tab */}
         {activeTab === 'overview' && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
-                  <Home className="w-3 h-3" />
-                  Property
+            {!editingLease ? (
+              <>
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setEditingLease(true)}
+                    className="flex items-center gap-1 text-sm text-canmp-green-600 hover:underline"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                    Edit Lease Details
+                  </button>
                 </div>
-                <p className="font-medium text-gray-900">
-                  {lease.unit?.property?.name}
-                  <br />
-                  <span className="text-sm text-gray-500">
-                    {lease.unit?.unit_number} • {lease.unit?.property?.address_street}
-                  </span>
-                </p>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
-                  <Calendar className="w-3 h-3" />
-                  Lease Term
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                      <Home className="w-3 h-3" />
+                      Property
+                    </div>
+                    <p className="font-medium text-gray-900">
+                      {lease.unit?.property?.name}
+                      <br />
+                      <span className="text-sm text-gray-500">
+                        {lease.unit?.unit_number} • {lease.unit?.property?.address_street}
+                      </span>
+                    </p>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                      <Calendar className="w-3 h-3" />
+                      Lease Term
+                    </div>
+                    <p className="font-medium text-gray-900">
+                      {format(new Date(lease.start_date), 'MMM d, yyyy')} -{' '}
+                      {lease.end_date ? format(new Date(lease.end_date), 'MMM d, yyyy') : 'Ongoing'}
+                    </p>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                      <DollarSign className="w-3 h-3" />
+                      Monthly Rent
+                    </div>
+                    <p className="font-medium text-gray-900">{formatCurrency(lease.monthly_rent)}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="text-xs text-gray-500 mb-1">Tenant Pays</div>
+                    <p className="font-medium text-gray-900">
+                      {formatCurrency(lease.tenant_pays || 0)}
+                      {(lease.subsidy_amount || 0) > 0 && (
+                        <span className="text-sm text-gray-500 ml-2">
+                          (+{formatCurrency(lease.subsidy_amount)} subsidy)
+                        </span>
+                      )}
+                    </p>
+                  </div>
                 </div>
-                <p className="font-medium text-gray-900">
-                  {format(new Date(lease.start_date), 'MMM d, yyyy')} -{' '}
-                  {lease.end_date ? format(new Date(lease.end_date), 'MMM d, yyyy') : 'Ongoing'}
-                </p>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
-                  <DollarSign className="w-3 h-3" />
-                  Monthly Rent
-                </div>
-                <p className="font-medium text-gray-900">{formatCurrency(lease.monthly_rent)}</p>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="text-xs text-gray-500 mb-1">Tenant Pays</div>
-                <p className="font-medium text-gray-900">
-                  {formatCurrency(lease.tenant_pays || 0)}
-                  {(lease.subsidy_amount || 0) > 0 && (
-                    <span className="text-sm text-gray-500 ml-2">
-                      (+{formatCurrency(lease.subsidy_amount)} subsidy)
-                    </span>
-                  )}
-                </p>
-              </div>
-            </div>
 
-            <div className="bg-canmp-green-50 rounded-lg p-3">
-              <div className="flex items-center gap-2 text-xs text-canmp-green-700 font-medium mb-1">
-                <FileText className="w-3 h-3" />
-                Lease Type
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-canmp-green-50 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-xs text-canmp-green-700 font-medium mb-1">
+                      <FileText className="w-3 h-3" />
+                      Lease Type
+                    </div>
+                    <p className="font-medium text-gray-900 capitalize">
+                      {lease.lease_type?.replace('_', ' ')}
+                    </p>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="text-xs text-gray-500 mb-1">Status</div>
+                    <p className="font-medium text-gray-900 capitalize">{lease.status}</p>
+                  </div>
+                </div>
+              </>
+            ) : (
+              // Edit Lease Form
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Monthly Rent
+                    </label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="number"
+                        value={leaseForm.monthly_rent}
+                        onChange={(e) =>
+                          setLeaseForm({ ...leaseForm, monthly_rent: parseFloat(e.target.value) || 0 })
+                        }
+                        className="input pl-8"
+                        min="0"
+                        step="0.01"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Subsidy Amount
+                    </label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="number"
+                        value={leaseForm.subsidy_amount}
+                        onChange={(e) =>
+                          setLeaseForm({ ...leaseForm, subsidy_amount: parseFloat(e.target.value) || 0 })
+                        }
+                        className="input pl-8"
+                        min="0"
+                        step="0.01"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
+                  Tenant pays: {formatCurrency(leaseForm.monthly_rent - leaseForm.subsidy_amount)}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Start Date
+                    </label>
+                    <input
+                      type="date"
+                      value={leaseForm.start_date}
+                      onChange={(e) => setLeaseForm({ ...leaseForm, start_date: e.target.value })}
+                      className="input"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      End Date
+                    </label>
+                    <input
+                      type="date"
+                      value={leaseForm.end_date}
+                      onChange={(e) => setLeaseForm({ ...leaseForm, end_date: e.target.value })}
+                      className="input"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Lease Type
+                    </label>
+                    <select
+                      value={leaseForm.lease_type}
+                      onChange={(e) => setLeaseForm({ ...leaseForm, lease_type: e.target.value })}
+                      className="input"
+                    >
+                      <option value="canmp_direct">CANMP Direct</option>
+                      <option value="master_sublease">Master Sublease</option>
+                      <option value="bridge">Bridge</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Status
+                    </label>
+                    <select
+                      value={leaseForm.status}
+                      onChange={(e) => setLeaseForm({ ...leaseForm, status: e.target.value })}
+                      className="input"
+                    >
+                      <option value="active">Active</option>
+                      <option value="pending">Pending</option>
+                      <option value="completed">Completed</option>
+                      <option value="terminated">Terminated</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                  <textarea
+                    value={leaseForm.notes}
+                    onChange={(e) => setLeaseForm({ ...leaseForm, notes: e.target.value })}
+                    className="input"
+                    rows={3}
+                  />
+                </div>
+
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={() => {
+                      setEditingLease(false);
+                      // Reset form to original values
+                      if (lease) {
+                        setLeaseForm({
+                          monthly_rent: lease.monthly_rent || 0,
+                          subsidy_amount: lease.subsidy_amount || 0,
+                          start_date: lease.start_date || '',
+                          end_date: lease.end_date || '',
+                          status: lease.status || 'active',
+                          lease_type: lease.lease_type || 'canmp_direct',
+                          notes: '',
+                        });
+                      }
+                    }}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                  >
+                    Cancel
+                  </button>
+                  <button onClick={saveLease} disabled={saving} className="btn-primary">
+                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                    Save Changes
+                  </button>
+                </div>
               </div>
-              <p className="font-medium text-gray-900 capitalize">
-                {lease.lease_type?.replace('_', ' ')}
-              </p>
-            </div>
+            )}
           </div>
         )}
 
