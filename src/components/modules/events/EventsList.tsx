@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, memo } from 'react';
 import {
   Plus,
   Search,
@@ -18,6 +18,8 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { useEvents, EventType, EventStatus } from '@/lib/hooks/useEvents';
+import { AddEventModal } from './AddEventModal';
+import { StatCard } from '@/components/ui/StatCard';
 
 const eventTypeConfig: Record<EventType, { label: string; icon: typeof Calendar; color: string }> = {
   class: { label: 'Class', icon: GraduationCap, color: 'bg-blue-100 text-blue-600' },
@@ -39,20 +41,42 @@ const statusConfig: Record<EventStatus, { label: string; color: string }> = {
 export default function EventsList() {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<EventType | 'all'>('all');
-  const { events, loading, error } = useEvents();
+  const [showAddModal, setShowAddModal] = useState(false);
+  const { events, loading, error, refetch } = useEvents();
 
-  const filtered = events.filter((e) => {
-    const matchesSearch =
-      e.title.toLowerCase().includes(search.toLowerCase()) ||
-      e.location?.toLowerCase().includes(search.toLowerCase()) ||
-      e.description?.toLowerCase().includes(search.toLowerCase());
-    const matchesType = typeFilter === 'all' || e.event_type === typeFilter;
-    return matchesSearch && matchesType;
-  });
+  // Memoize current date to avoid creating new Date objects on every render
+  const now = useMemo(() => new Date(), []);
 
-  const upcomingCount = events.filter(
-    (e) => new Date(e.start_date) >= new Date() && e.status === 'scheduled'
-  ).length;
+  // Memoize filtered events
+  const filtered = useMemo(
+    () =>
+      events.filter((e) => {
+        const matchesSearch =
+          e.title.toLowerCase().includes(search.toLowerCase()) ||
+          e.location?.toLowerCase().includes(search.toLowerCase()) ||
+          e.description?.toLowerCase().includes(search.toLowerCase());
+        const matchesType = typeFilter === 'all' || e.event_type === typeFilter;
+        return matchesSearch && matchesType;
+      }),
+    [events, search, typeFilter]
+  );
+
+  // Memoize stats calculations
+  const stats = useMemo(() => {
+    const upcomingCount = events.filter(
+      (e) => new Date(e.start_date) >= now && e.status === 'scheduled'
+    ).length;
+    const thisMonthCount = events.filter((e) => {
+      const eventDate = new Date(e.start_date);
+      return (
+        eventDate.getMonth() === now.getMonth() &&
+        eventDate.getFullYear() === now.getFullYear()
+      );
+    }).length;
+    const virtualCount = events.filter((e) => e.is_virtual).length;
+
+    return { upcomingCount, thisMonthCount, virtualCount };
+  }, [events, now]);
 
   if (loading) {
     return (
@@ -89,7 +113,7 @@ export default function EventsList() {
             Manage classes, workshops, and community events
           </p>
         </div>
-        <button className="btn-primary">
+        <button onClick={() => setShowAddModal(true)} className="btn-primary">
           <Plus className="w-4 h-4" />
           Create Event
         </button>
@@ -97,35 +121,10 @@ export default function EventsList() {
 
       {/* Stats */}
       <div className="grid grid-cols-4 gap-4 mb-6">
-        <div className="card p-4">
-          <p className="text-sm text-gray-500">Total Events</p>
-          <p className="text-2xl font-semibold">{events.length}</p>
-        </div>
-        <div className="card p-4">
-          <p className="text-sm text-gray-500">Upcoming</p>
-          <p className="text-2xl font-semibold text-blue-600">{upcomingCount}</p>
-        </div>
-        <div className="card p-4">
-          <p className="text-sm text-gray-500">This Month</p>
-          <p className="text-2xl font-semibold text-canmp-green-600">
-            {
-              events.filter((e) => {
-                const eventDate = new Date(e.start_date);
-                const now = new Date();
-                return (
-                  eventDate.getMonth() === now.getMonth() &&
-                  eventDate.getFullYear() === now.getFullYear()
-                );
-              }).length
-            }
-          </p>
-        </div>
-        <div className="card p-4">
-          <p className="text-sm text-gray-500">Virtual Events</p>
-          <p className="text-2xl font-semibold text-purple-600">
-            {events.filter((e) => e.is_virtual).length}
-          </p>
-        </div>
+        <StatCard label="Total Events" value={events.length} />
+        <StatCard label="Upcoming" value={stats.upcomingCount} variant="blue" />
+        <StatCard label="This Month" value={stats.thisMonthCount} variant="green" />
+        <StatCard label="Virtual Events" value={stats.virtualCount} />
       </div>
 
       {/* Filters */}
@@ -258,6 +257,13 @@ export default function EventsList() {
           </div>
         )}
       </div>
+
+      {/* Add Event Modal */}
+      <AddEventModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSuccess={refetch}
+      />
     </div>
   );
 }
