@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   DollarSign,
   CreditCard,
@@ -21,6 +21,7 @@ import {
   CheckCircle,
   Clock,
   XCircle,
+  Info,
 } from 'lucide-react';
 import {
   BarChart,
@@ -39,6 +40,19 @@ import {
 } from 'recharts';
 import { cn } from '@/lib/utils';
 import { StatCard } from '@/components/ui/StatCard';
+import {
+  useFinancialDashboard,
+  useAplosData,
+  useRampData,
+  type AplosFund,
+  type AplosTransaction,
+  type AplosIncomeStatementLine,
+  type AplosTrialBalanceLine,
+  type AplosYoYData,
+  type RampCard,
+  type RampTransaction,
+  type RampReimbursement,
+} from '@/lib/hooks/useFinancialData';
 
 // Types
 type TabType = 'overview' | 'aplos' | 'ramp';
@@ -126,48 +140,78 @@ export default function FinancialPage() {
   const [selectedFund, setSelectedFund] = useState<string>('all');
   const [syncing, setSyncing] = useState(false);
 
+  // Fetch data using hooks
+  const { aplosData, rampData, loading: dashboardLoading, isDemo, refresh: refreshDashboard } = useFinancialDashboard();
+  const { data: fundsData, refresh: refreshFunds } = useAplosData('funds');
+  const { data: transactionsData, refresh: refreshTransactions } = useAplosData('transactions', selectedFund);
+  const { data: incomeData } = useAplosData('income-statement');
+  const { data: trialBalanceData } = useAplosData('trial-balance');
+  const { data: yoyData } = useAplosData('yoy');
+  const { data: cardsData, refresh: refreshCards } = useRampData('cards');
+  const { data: rampTransactionsData, refresh: refreshRampTransactions } = useRampData('transactions');
+  const { data: reimbursementsData, refresh: refreshReimbursements } = useRampData('reimbursements');
+
+  // Use data from hooks or fallback to sample data
+  const funds: AplosFund[] = fundsData || sampleFunds;
+  const aplosTransactions: AplosTransaction[] = transactionsData || sampleAplosTransactions;
+  const incomeStatement: AplosIncomeStatementLine[] = incomeData || sampleIncomeStatement;
+  const trialBalance: AplosTrialBalanceLine[] = trialBalanceData || sampleTrialBalance;
+  const yoyChartData: AplosYoYData[] = yoyData || sampleYoYData;
+  const rampCards: RampCard[] = cardsData || sampleRampCards;
+  const rampTransactionsList: RampTransaction[] = rampTransactionsData || sampleRampTransactions;
+  const reimbursements: RampReimbursement[] = reimbursementsData || sampleReimbursements;
+
   // Memoized calculations
   const fundTotals = useMemo(() => {
-    return sampleFunds.reduce((sum, f) => sum + f.balance, 0);
-  }, []);
+    return funds.reduce((sum, f) => sum + f.balance, 0);
+  }, [funds]);
 
   const incomeTotal = useMemo(() => {
-    return sampleIncomeStatement
+    return incomeStatement
       .filter(line => line.category === 'Revenue')
       .reduce((sum, line) => sum + line.current_amount, 0);
-  }, []);
+  }, [incomeStatement]);
 
   const expenseTotal = useMemo(() => {
-    return sampleIncomeStatement
+    return incomeStatement
       .filter(line => line.category === 'Expenses')
       .reduce((sum, line) => sum + line.current_amount, 0);
-  }, []);
+  }, [incomeStatement]);
 
   const rampSpendTotal = useMemo(() => {
-    return sampleRampTransactions
+    return rampTransactionsList
       .filter(t => t.state === 'cleared')
       .reduce((sum, t) => sum + t.amount, 0);
-  }, []);
+  }, [rampTransactionsList]);
 
   const pendingReimbursements = useMemo(() => {
-    return sampleReimbursements.filter(r => r.status === 'pending');
-  }, []);
+    return reimbursements.filter(r => r.status === 'pending');
+  }, [reimbursements]);
 
   const spendingByCategory = useMemo(() => {
     const categories: Record<string, number> = {};
-    sampleRampTransactions
+    rampTransactionsList
       .filter(t => t.state === 'cleared')
       .forEach(t => {
         categories[t.category] = (categories[t.category] || 0) + t.amount;
       });
     return Object.entries(categories).map(([name, value]) => ({ name, value }));
-  }, []);
+  }, [rampTransactionsList]);
 
   const handleSync = async () => {
     setSyncing(true);
-    // Simulate sync
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setSyncing(false);
+    try {
+      await Promise.all([
+        refreshDashboard(),
+        refreshFunds(),
+        refreshTransactions(),
+        refreshCards(),
+        refreshRampTransactions(),
+        refreshReimbursements(),
+      ]);
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const formatCurrency = (amount: number) => {
@@ -222,6 +266,16 @@ export default function FinancialPage() {
 
   return (
     <div className="min-h-full p-6">
+      {/* Demo Data Banner */}
+      {isDemo && (
+        <div className="mb-4 flex items-center gap-2 px-4 py-2 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800 text-sm">
+          <Info className="w-4 h-4" />
+          <span>
+            Showing demo data. Configure Aplos and Ramp API credentials in environment variables to see live data.
+          </span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
@@ -234,15 +288,15 @@ export default function FinancialPage() {
         </div>
         <button
           onClick={handleSync}
-          disabled={syncing}
+          disabled={syncing || dashboardLoading}
           className="btn-primary"
         >
-          {syncing ? (
+          {syncing || dashboardLoading ? (
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
             <RefreshCw className="w-4 h-4" />
           )}
-          {syncing ? 'Syncing...' : 'Sync All'}
+          {syncing ? 'Syncing...' : dashboardLoading ? 'Loading...' : 'Refresh Data'}
         </button>
       </div>
 
@@ -306,7 +360,7 @@ export default function FinancialPage() {
               <h3 className="font-medium text-gray-900 mb-4">Revenue: Year over Year</h3>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={sampleYoYData}>
+                  <LineChart data={yoyChartData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="#6b7280" />
                     <YAxis tick={{ fontSize: 12 }} stroke="#6b7280" tickFormatter={(v) => `$${v/1000}k`} />
@@ -378,7 +432,7 @@ export default function FinancialPage() {
                 </button>
               </div>
               <div className="divide-y divide-gray-100">
-                {sampleAplosTransactions.slice(0, 4).map(txn => (
+                {aplosTransactions.slice(0, 4).map(txn => (
                   <div key={txn.id} className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className={cn(
@@ -454,7 +508,7 @@ export default function FinancialPage() {
             </div>
             <div className="p-4">
               <div className="grid grid-cols-4 gap-4">
-                {sampleFunds.map(fund => (
+                {funds.map(fund => (
                   <div key={fund.id} className="p-4 bg-gray-50 rounded-lg">
                     <div className="flex items-center justify-between mb-2">
                       <p className="text-sm font-medium text-gray-900">{fund.name}</p>
@@ -510,7 +564,7 @@ export default function FinancialPage() {
               className="input w-48"
             >
               <option value="all">All Funds</option>
-              {sampleFunds.map(fund => (
+              {funds.map(fund => (
                 <option key={fund.id} value={fund.id}>{fund.name}</option>
               ))}
             </select>
@@ -540,7 +594,7 @@ export default function FinancialPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {sampleAplosTransactions.map(txn => (
+                  {aplosTransactions.map(txn => (
                     <tr key={txn.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-500">{formatDate(txn.date)}</td>
                       <td className="px-4 py-3">
@@ -588,7 +642,7 @@ export default function FinancialPage() {
                   <tr className="bg-green-50">
                     <td colSpan={3} className="px-4 py-2 text-sm font-semibold text-green-700">Revenue</td>
                   </tr>
-                  {sampleIncomeStatement.filter(l => l.category === 'Revenue').map((line, i) => (
+                  {incomeStatement.filter(l => l.category === 'Revenue').map((line, i) => (
                     <tr key={i} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-900 pl-8">{line.account_name}</td>
                       <td className="px-4 py-3 text-sm text-right text-gray-900">{formatCurrency(line.current_amount)}</td>
@@ -603,7 +657,7 @@ export default function FinancialPage() {
                   <tr className="bg-red-50">
                     <td colSpan={3} className="px-4 py-2 text-sm font-semibold text-red-700">Expenses</td>
                   </tr>
-                  {sampleIncomeStatement.filter(l => l.category === 'Expenses').map((line, i) => (
+                  {incomeStatement.filter(l => l.category === 'Expenses').map((line, i) => (
                     <tr key={i} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-900 pl-8">{line.account_name}</td>
                       <td className="px-4 py-3 text-sm text-right text-gray-900">{formatCurrency(line.current_amount)}</td>
@@ -639,7 +693,7 @@ export default function FinancialPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {sampleTrialBalance.map((line, i) => (
+                  {trialBalance.map((line, i) => (
                     <tr key={i} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">{line.account_name}</td>
                       <td className="px-4 py-3 text-sm text-gray-500">{line.type}</td>
@@ -676,7 +730,7 @@ export default function FinancialPage() {
               <h3 className="font-medium text-gray-900 mb-4">Revenue Comparison: 2025 vs 2024</h3>
               <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={sampleYoYData}>
+                  <BarChart data={yoyChartData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="#6b7280" />
                     <YAxis tick={{ fontSize: 12 }} stroke="#6b7280" tickFormatter={(v) => `$${v/1000}k`} />
@@ -724,7 +778,7 @@ export default function FinancialPage() {
           {/* Cards View */}
           {rampView === 'cards' && (
             <div className="grid grid-cols-3 gap-4">
-              {sampleRampCards.map(card => (
+              {rampCards.map(card => (
                 <div key={card.id} className="card p-5 hover:shadow-md transition-shadow">
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex items-center gap-3">
@@ -800,7 +854,7 @@ export default function FinancialPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {sampleRampTransactions.map(txn => (
+                  {rampTransactionsList.map(txn => (
                     <tr key={txn.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-500">{formatDate(txn.transaction_date)}</td>
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">{txn.merchant_name}</td>
@@ -841,7 +895,7 @@ export default function FinancialPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {sampleReimbursements.map(reimb => (
+                  {reimbursements.map(reimb => (
                     <tr key={reimb.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-500">{formatDate(reimb.transaction_date)}</td>
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">{reimb.user_name}</td>

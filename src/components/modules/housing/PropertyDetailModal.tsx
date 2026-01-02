@@ -19,6 +19,7 @@ import {
   DollarSign,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/components/providers/AuthProvider';
 
 interface Property {
   id: string;
@@ -62,6 +63,7 @@ interface PropertyDetailModalProps {
 }
 
 export function PropertyDetailModal({ isOpen, onClose, propertyId }: PropertyDetailModalProps) {
+  const { profile } = useAuth();
   const [property, setProperty] = useState<Property | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
@@ -120,12 +122,13 @@ export function PropertyDetailModal({ isOpen, onClose, propertyId }: PropertyDet
   }
 
   async function addNote() {
-    if (!newNote.trim()) return;
+    if (!newNote.trim() || !profile?.id) return;
     setSavingNote(true);
 
     try {
       const { error } = await (supabase as any).from('property_notes').insert({
         property_id: propertyId,
+        author_id: profile.id,
         content: newNote.trim(),
         note_type: 'general',
       });
