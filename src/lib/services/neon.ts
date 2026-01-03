@@ -225,33 +225,94 @@ class NeonClient {
   }
 
   /**
-   * Get multiple donors by fetching a range of account IDs
-   * Note: API v1 doesn't have a proper list endpoint, so we fetch by ID range
+   * List accounts using the listAccounts endpoint
+   * Uses output fields to specify which fields to return
    */
-  async getDonors(options?: { startId?: number; count?: number }): Promise<NeonApiResponse<NeonDonor[]>> {
-    const startId = options?.startId || 1;
-    const count = options?.count || 50;
-    const donors: NeonDonor[] = [];
+  async getDonors(options?: { page?: number; pageSize?: number }): Promise<NeonApiResponse<NeonDonor[]>> {
+    const sessionId = await this.login();
+    const page = options?.page || 1;
+    const pageSize = options?.pageSize || 50;
 
-    // Fetch accounts in parallel (batches of 10)
-    const batchSize = 10;
-    for (let i = 0; i < count; i += batchSize) {
-      const promises = [];
-      for (let j = 0; j < batchSize && i + j < count; j++) {
-        promises.push(this.getDonor(String(startId + i + j)));
+    // Build the request URL with output fields
+    // The listAccounts endpoint requires specific output fields to be defined
+    const params = new URLSearchParams();
+    params.append('userSessionId', sessionId);
+    params.append('responseType', 'json');
+    params.append('page.currentPage', String(page - 1)); // Neon uses 0-based pages
+    params.append('page.pageSize', String(pageSize));
+    params.append('page.sortColumn', 'Account ID');
+    params.append('page.sortDirection', 'DESC');
+
+    // Define output fields - these are the fields we want returned
+    const outputFields = [
+      'Account ID',
+      'First Name',
+      'Last Name',
+      'Email 1',
+      'Phone 1',
+      'Account Created Date/Time',
+    ];
+
+    outputFields.forEach(field => {
+      params.append('outputfields.idnamepair.id', '');
+      params.append('outputfields.idnamepair.name', field);
+    });
+
+    try {
+      const response = await fetch(`${this.baseUrl}/account/listAccounts?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Neon listAccounts error:', errorText);
+        throw new Error(`Neon API Error: ${response.status}`);
       }
-      const results = await Promise.all(promises);
-      donors.push(...results.filter((d): d is NeonDonor => d !== null));
-    }
 
-    return {
-      data: donors,
-      pagination: {
-        currentPage: 1,
-        totalPages: 1,
-        totalResults: donors.length,
-      },
-    };
+      const data = await response.json();
+
+      if (data.listAccountsResponse?.operationResult !== 'SUCCESS') {
+        console.error('Neon listAccounts failed:', data.listAccountsResponse?.responseMessage);
+        return { data: [], pagination: { currentPage: 1, totalPages: 1, totalResults: 0 } };
+      }
+
+      const accounts = data.listAccountsResponse?.searchResults?.nameValuePairs || [];
+      const pageInfo = data.listAccountsResponse?.page || {};
+
+      // Transform the accounts to NeonDonor format
+      const donors: NeonDonor[] = accounts.map((account: any) => {
+        const fields = account.nameValuePair || [];
+        const getValue = (name: string) => fields.find((f: any) => f.name === name)?.value || '';
+
+        return {
+          id: getValue('Account ID'),
+          firstName: getValue('First Name'),
+          lastName: getValue('Last Name'),
+          email: getValue('Email 1'),
+          phone: getValue('Phone 1') || undefined,
+          totalDonations: 0, // Would need separate donation query
+          donationCount: 0,
+          lastDonationDate: undefined,
+          membershipStatus: 'none' as const,
+          createdAt: getValue('Account Created Date/Time') || new Date().toISOString(),
+        };
+      });
+
+      return {
+        data: donors,
+        pagination: {
+          currentPage: (pageInfo.currentPage || 0) + 1,
+          totalPages: pageInfo.totalPage || 1,
+          totalResults: pageInfo.totalResults || donors.length,
+        },
+      };
+    } catch (error) {
+      console.error('Error listing accounts:', error);
+      return { data: [], pagination: { currentPage: 1, totalPages: 1, totalResults: 0 } };
+    }
   }
 
   private getMembershipStatus(account: any): 'active' | 'expired' | 'none' {
@@ -264,22 +325,93 @@ class NeonClient {
 
   // ============================================
   // Donations
-  // Note: List endpoint requires output fields which may not be configured
-  // For now, return empty or demo data
   // ============================================
 
-  async getDonations(): Promise<NeonApiResponse<NeonDonation[]>> {
-    // The listDonations endpoint requires specific output fields to be configured
-    // in the Neon CRM admin. Without those, it returns an error.
-    // For now, return empty array - donations would need to be fetched via individual accounts
-    return {
-      data: [],
-      pagination: {
-        currentPage: 1,
-        totalPages: 1,
-        totalResults: 0,
-      },
-    };
+  async getDonations(options?: { page?: number; pageSize?: number }): Promise<NeonApiResponse<NeonDonation[]>> {
+    const sessionId = await this.login();
+    const page = options?.page || 1;
+    const pageSize = options?.pageSize || 50;
+
+    const params = new URLSearchParams();
+    params.append('userSessionId', sessionId);
+    params.append('responseType', 'json');
+    params.append('page.currentPage', String(page - 1));
+    params.append('page.pageSize', String(pageSize));
+    params.append('page.sortColumn', 'Donation Date');
+    params.append('page.sortDirection', 'DESC');
+
+    // Define output fields for donations
+    const outputFields = [
+      'Donation ID',
+      'Account ID',
+      'First Name',
+      'Last Name',
+      'Donation Amount',
+      'Donation Date',
+      'Campaign Name',
+      'Fund Name',
+      'Donation Status',
+    ];
+
+    outputFields.forEach(field => {
+      params.append('outputfields.idnamepair.id', '');
+      params.append('outputfields.idnamepair.name', field);
+    });
+
+    try {
+      const response = await fetch(`${this.baseUrl}/donation/listDonations?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Neon listDonations error:', errorText);
+        return { data: [], pagination: { currentPage: 1, totalPages: 1, totalResults: 0 } };
+      }
+
+      const data = await response.json();
+
+      if (data.listDonationsResponse?.operationResult !== 'SUCCESS') {
+        console.error('Neon listDonations failed:', data.listDonationsResponse?.responseMessage);
+        return { data: [], pagination: { currentPage: 1, totalPages: 1, totalResults: 0 } };
+      }
+
+      const donations = data.listDonationsResponse?.searchResults?.nameValuePairs || [];
+      const pageInfo = data.listDonationsResponse?.page || {};
+
+      const donationList: NeonDonation[] = donations.map((donation: any) => {
+        const fields = donation.nameValuePair || [];
+        const getValue = (name: string) => fields.find((f: any) => f.name === name)?.value || '';
+
+        return {
+          id: getValue('Donation ID'),
+          donorId: getValue('Account ID'),
+          donorName: `${getValue('First Name')} ${getValue('Last Name')}`.trim(),
+          amount: parseFloat(getValue('Donation Amount')) || 0,
+          date: getValue('Donation Date'),
+          campaign: getValue('Campaign Name') || undefined,
+          fund: getValue('Fund Name') || undefined,
+          paymentMethod: 'other' as const,
+          status: getValue('Donation Status')?.toLowerCase() === 'succeeded' ? 'completed' : 'pending' as const,
+          recurring: false,
+        };
+      });
+
+      return {
+        data: donationList,
+        pagination: {
+          currentPage: (pageInfo.currentPage || 0) + 1,
+          totalPages: pageInfo.totalPage || 1,
+          totalResults: pageInfo.totalResults || donationList.length,
+        },
+      };
+    } catch (error) {
+      console.error('Error listing donations:', error);
+      return { data: [], pagination: { currentPage: 1, totalPages: 1, totalResults: 0 } };
+    }
   }
 
   // ============================================
@@ -329,19 +461,21 @@ class NeonClient {
     topDonors: NeonDonor[];
     campaigns: NeonCampaign[];
   }> {
-    // Fetch some donors to populate the dashboard
-    const donorsResponse = await this.getDonors({ startId: 1, count: 20 });
+    // Fetch donors using the listAccounts endpoint
+    const donorsResponse = await this.getDonors({ page: 1, pageSize: 50 });
     const donors = donorsResponse.data;
 
     // Count members
     const activeMembers = donors.filter(d => d.membershipStatus === 'active').length;
 
-    // Sort by name for now (would sort by donations if we had that data)
-    const topDonors = [...donors].slice(0, 5);
+    // Top donors (by total donations or just first 5 if no donation data)
+    const topDonors = [...donors]
+      .sort((a, b) => b.totalDonations - a.totalDonations)
+      .slice(0, 5);
 
     return {
       totalDonations: 0, // Would need donation data
-      totalDonors: donors.length,
+      totalDonors: donorsResponse.pagination?.totalResults || donors.length,
       activeCampaigns: 0,
       activeMembers,
       recentDonations: [],
