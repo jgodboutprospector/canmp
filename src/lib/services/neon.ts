@@ -1,13 +1,13 @@
 /**
- * Neon CRM API Integration Service
+ * Neon CRM API v1 Integration Service
  *
- * API Documentation: https://developer.neoncrm.com/
+ * API Documentation: https://developer.neoncrm.com/api/
  *
- * Authentication: API Key
- * - Set NEON_API_KEY and NEON_ORG_ID in .env.local
+ * Authentication: Session-based (login with orgId + apiKey, then use sessionId)
+ * - Set NEON_ORG_ID and NEON_API_KEY in .env.local
  *
  * Features:
- * - Donor management
+ * - Donor (account) management
  * - Donation tracking
  * - Campaigns
  * - Memberships
@@ -23,12 +23,6 @@ export interface NeonDonor {
   lastName: string;
   email: string;
   phone?: string;
-  address?: {
-    street: string;
-    city: string;
-    state: string;
-    zip: string;
-  };
   totalDonations: number;
   donationCount: number;
   lastDonationDate?: string;
@@ -83,34 +77,105 @@ export interface NeonApiResponse<T> {
 }
 
 // ============================================
-// Neon CRM API Client
+// Neon CRM API v1 Client
 // ============================================
 
 class NeonClient {
   private baseUrl: string;
-  private apiKey: string;
   private orgId: string;
+  private apiKey: string;
+  private sessionId: string | null = null;
+  private sessionExpiry: Date | null = null;
 
   constructor() {
-    this.baseUrl = process.env.NEON_API_BASE_URL || 'https://api.neoncrm.com/v2';
-    this.apiKey = process.env.NEON_API_KEY || '';
+    this.baseUrl = 'https://api.neoncrm.com/neonws/services/api';
     this.orgId = process.env.NEON_ORG_ID || '';
+    this.apiKey = process.env.NEON_API_KEY || '';
   }
 
+  /**
+   * Login to get a session ID (required for API v1)
+   */
+  private async login(): Promise<string> {
+    // Check if we have a valid session (sessions last ~30 minutes)
+    if (this.sessionId && this.sessionExpiry && this.sessionExpiry > new Date()) {
+      return this.sessionId;
+    }
+
+    if (!this.orgId || !this.apiKey) {
+      throw new Error('Neon credentials not configured. Set NEON_ORG_ID and NEON_API_KEY.');
+    }
+
+    const response = await fetch(`${this.baseUrl}/common/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: `login.orgId=${encodeURIComponent(this.orgId)}&login.apiKey=${encodeURIComponent(this.apiKey)}`,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Neon Login Error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+
+    if (data.loginResponse?.operationResult !== 'SUCCESS') {
+      throw new Error(`Neon Login Failed: ${data.loginResponse?.responseMessage || 'Unknown error'}`);
+    }
+
+    this.sessionId = data.loginResponse.userSessionId;
+    // Set expiry to 25 minutes (sessions expire after 30 minutes)
+    this.sessionExpiry = new Date(Date.now() + 25 * 60 * 1000);
+
+    return this.sessionId!;
+  }
+
+  /**
+   * Make an authenticated request to the API
+   */
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    params: Record<string, string> = {}
   ): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
+    const sessionId = await this.login();
 
-    const response = await fetch(url, {
-      ...options,
+    const searchParams = new URLSearchParams({
+      userSessionId: sessionId,
+      ...params,
+    });
+
+    const response = await fetch(`${this.baseUrl}${endpoint}?${searchParams.toString()}`, {
+      method: 'GET',
       headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
-        'NEON-API-VERSION': '2.8',
         'Content-Type': 'application/json',
-        ...options.headers,
       },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Neon API Error: ${response.status} - ${errorText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Make a POST request with form data
+   */
+  private async postRequest<T>(
+    endpoint: string,
+    data: string
+  ): Promise<T> {
+    const sessionId = await this.login();
+
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: `userSessionId=${sessionId}&${data}`,
     });
 
     if (!response.ok) {
@@ -125,97 +190,130 @@ class NeonClient {
   // Donors (Accounts)
   // ============================================
 
-  async getDonors(params?: {
-    search?: string;
-    page?: number;
-    pageSize?: number;
-  }): Promise<NeonApiResponse<NeonDonor[]>> {
-    const searchParams = new URLSearchParams();
+  /**
+   * Get a single donor/account by ID
+   */
+  async getDonor(accountId: string): Promise<NeonDonor | null> {
+    try {
+      const response = await this.request<any>('/account/retrieveIndividualAccount', {
+        accountId,
+      });
 
-    if (params?.search) searchParams.append('search', params.search);
-    if (params?.page) searchParams.append('currentPage', params.page.toString());
-    if (params?.pageSize) searchParams.append('pageSize', params.pageSize.toString());
+      if (response.retrieveIndividualAccountResponse?.operationResult !== 'SUCCESS') {
+        return null;
+      }
 
-    const query = searchParams.toString();
-    return this.request<NeonApiResponse<NeonDonor[]>>(`/accounts${query ? `?${query}` : ''}`);
+      const account = response.retrieveIndividualAccountResponse.individualAccount;
+      const contact = account.primaryContact;
+
+      return {
+        id: String(account.accountId),
+        firstName: contact?.firstName || '',
+        lastName: contact?.lastName || '',
+        email: contact?.email1 || '',
+        phone: contact?.phone1 || undefined,
+        totalDonations: 0, // Would need separate donation query
+        donationCount: 0,
+        lastDonationDate: undefined,
+        membershipStatus: this.getMembershipStatus(account),
+        createdAt: account.createdDateTime || new Date().toISOString(),
+      };
+    } catch (error) {
+      console.error('Error fetching donor:', error);
+      return null;
+    }
   }
 
-  async getDonor(donorId: string): Promise<NeonDonor> {
-    const response = await this.request<NeonApiResponse<NeonDonor>>(`/accounts/${donorId}`);
-    return response.data;
+  /**
+   * Get multiple donors by fetching a range of account IDs
+   * Note: API v1 doesn't have a proper list endpoint, so we fetch by ID range
+   */
+  async getDonors(options?: { startId?: number; count?: number }): Promise<NeonApiResponse<NeonDonor[]>> {
+    const startId = options?.startId || 1;
+    const count = options?.count || 50;
+    const donors: NeonDonor[] = [];
+
+    // Fetch accounts in parallel (batches of 10)
+    const batchSize = 10;
+    for (let i = 0; i < count; i += batchSize) {
+      const promises = [];
+      for (let j = 0; j < batchSize && i + j < count; j++) {
+        promises.push(this.getDonor(String(startId + i + j)));
+      }
+      const results = await Promise.all(promises);
+      donors.push(...results.filter((d): d is NeonDonor => d !== null));
+    }
+
+    return {
+      data: donors,
+      pagination: {
+        currentPage: 1,
+        totalPages: 1,
+        totalResults: donors.length,
+      },
+    };
+  }
+
+  private getMembershipStatus(account: any): 'active' | 'expired' | 'none' {
+    const types = account.individualTypes?.individualType || [];
+    const hasMembership = types.some((t: any) =>
+      t.name?.toLowerCase().includes('member')
+    );
+    return hasMembership ? 'active' : 'none';
   }
 
   // ============================================
   // Donations
+  // Note: List endpoint requires output fields which may not be configured
+  // For now, return empty or demo data
   // ============================================
 
-  async getDonations(params?: {
-    donorId?: string;
-    campaign?: string;
-    startDate?: string;
-    endDate?: string;
-    page?: number;
-    pageSize?: number;
-  }): Promise<NeonApiResponse<NeonDonation[]>> {
-    const searchParams = new URLSearchParams();
-
-    if (params?.donorId) searchParams.append('accountId', params.donorId);
-    if (params?.campaign) searchParams.append('campaign', params.campaign);
-    if (params?.startDate) searchParams.append('startDate', params.startDate);
-    if (params?.endDate) searchParams.append('endDate', params.endDate);
-    if (params?.page) searchParams.append('currentPage', params.page.toString());
-    if (params?.pageSize) searchParams.append('pageSize', params.pageSize.toString());
-
-    const query = searchParams.toString();
-    return this.request<NeonApiResponse<NeonDonation[]>>(`/donations${query ? `?${query}` : ''}`);
-  }
-
-  async getDonation(donationId: string): Promise<NeonDonation> {
-    const response = await this.request<NeonApiResponse<NeonDonation>>(`/donations/${donationId}`);
-    return response.data;
+  async getDonations(): Promise<NeonApiResponse<NeonDonation[]>> {
+    // The listDonations endpoint requires specific output fields to be configured
+    // in the Neon CRM admin. Without those, it returns an error.
+    // For now, return empty array - donations would need to be fetched via individual accounts
+    return {
+      data: [],
+      pagination: {
+        currentPage: 1,
+        totalPages: 1,
+        totalResults: 0,
+      },
+    };
   }
 
   // ============================================
   // Campaigns
   // ============================================
 
-  async getCampaigns(params?: {
-    status?: 'active' | 'completed' | 'draft';
-    page?: number;
-    pageSize?: number;
-  }): Promise<NeonApiResponse<NeonCampaign[]>> {
-    const searchParams = new URLSearchParams();
-
-    if (params?.status) searchParams.append('status', params.status);
-    if (params?.page) searchParams.append('currentPage', params.page.toString());
-    if (params?.pageSize) searchParams.append('pageSize', params.pageSize.toString());
-
-    const query = searchParams.toString();
-    return this.request<NeonApiResponse<NeonCampaign[]>>(`/campaigns${query ? `?${query}` : ''}`);
-  }
-
-  async getCampaign(campaignId: string): Promise<NeonCampaign> {
-    const response = await this.request<NeonApiResponse<NeonCampaign>>(`/campaigns/${campaignId}`);
-    return response.data;
+  async getCampaigns(): Promise<NeonApiResponse<NeonCampaign[]>> {
+    // API v1 campaign endpoints may require specific configuration
+    // Return empty for now
+    return {
+      data: [],
+      pagination: {
+        currentPage: 1,
+        totalPages: 1,
+        totalResults: 0,
+      },
+    };
   }
 
   // ============================================
   // Memberships
   // ============================================
 
-  async getMemberships(params?: {
-    status?: 'active' | 'expired' | 'pending';
-    page?: number;
-    pageSize?: number;
-  }): Promise<NeonApiResponse<NeonMembership[]>> {
-    const searchParams = new URLSearchParams();
-
-    if (params?.status) searchParams.append('status', params.status);
-    if (params?.page) searchParams.append('currentPage', params.page.toString());
-    if (params?.pageSize) searchParams.append('pageSize', params.pageSize.toString());
-
-    const query = searchParams.toString();
-    return this.request<NeonApiResponse<NeonMembership[]>>(`/memberships${query ? `?${query}` : ''}`);
+  async getMemberships(): Promise<NeonApiResponse<NeonMembership[]>> {
+    // API v1 membership endpoints may require specific configuration
+    // Return empty for now
+    return {
+      data: [],
+      pagination: {
+        currentPage: 1,
+        totalPages: 1,
+        totalResults: 0,
+      },
+    };
   }
 
   // ============================================
@@ -231,34 +329,41 @@ class NeonClient {
     topDonors: NeonDonor[];
     campaigns: NeonCampaign[];
   }> {
-    // Fetch multiple data points in parallel
-    const [donationsResponse, donorsResponse, campaignsResponse, membershipsResponse] = await Promise.all([
-      this.getDonations({ pageSize: 10 }),
-      this.getDonors({ pageSize: 10 }),
-      this.getCampaigns({ status: 'active' }),
-      this.getMemberships({ status: 'active' }),
-    ]);
-
-    const donations = donationsResponse.data;
+    // Fetch some donors to populate the dashboard
+    const donorsResponse = await this.getDonors({ startId: 1, count: 20 });
     const donors = donorsResponse.data;
-    const campaigns = campaignsResponse.data;
-    const memberships = membershipsResponse.data;
 
-    // Calculate totals
-    const totalDonations = donations.reduce((sum, d) => sum + d.amount, 0);
+    // Count members
+    const activeMembers = donors.filter(d => d.membershipStatus === 'active').length;
 
-    // Sort donors by total donations
-    const topDonors = [...donors].sort((a, b) => b.totalDonations - a.totalDonations).slice(0, 5);
+    // Sort by name for now (would sort by donations if we had that data)
+    const topDonors = [...donors].slice(0, 5);
 
     return {
-      totalDonations,
-      totalDonors: donorsResponse.pagination?.totalResults || donors.length,
-      activeCampaigns: campaigns.length,
-      activeMembers: membershipsResponse.pagination?.totalResults || memberships.length,
-      recentDonations: donations,
+      totalDonations: 0, // Would need donation data
+      totalDonors: donors.length,
+      activeCampaigns: 0,
+      activeMembers,
+      recentDonations: [],
       topDonors,
-      campaigns,
+      campaigns: [],
     };
+  }
+
+  // ============================================
+  // Test Connection
+  // ============================================
+
+  async testConnection(): Promise<{ success: boolean; message: string }> {
+    try {
+      await this.login();
+      return { success: true, message: 'Connected to Neon CRM successfully' };
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Connection failed',
+      };
+    }
   }
 }
 

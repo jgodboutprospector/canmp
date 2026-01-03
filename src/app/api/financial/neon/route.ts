@@ -36,6 +36,22 @@ function isNeonConfigured(): boolean {
   return !!(process.env.NEON_API_KEY && process.env.NEON_ORG_ID);
 }
 
+// Transform Neon API donor to our format
+function transformDonor(donor: NeonDonor) {
+  return {
+    id: donor.id,
+    firstName: donor.firstName,
+    lastName: donor.lastName,
+    email: donor.email,
+    phone: donor.phone,
+    totalDonations: donor.totalDonations,
+    donationCount: donor.donationCount,
+    lastDonationDate: donor.lastDonationDate,
+    membershipStatus: donor.membershipStatus,
+    createdAt: donor.createdAt,
+  };
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const dataType = searchParams.get('type') || 'donations';
