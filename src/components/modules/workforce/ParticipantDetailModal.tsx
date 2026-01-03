@@ -200,7 +200,7 @@ export default function ParticipantDetailModal({
           .order('created_at', { ascending: false }),
         (supabase as any)
           .from('workforce_notes')
-          .select('id, content, note_type, created_at, author:users(first_name, last_name)')
+          .select('id, content, note_type, created_at, author_id')
           .eq('participant_id', participant.id)
           .order('created_at', { ascending: false }),
       ]);

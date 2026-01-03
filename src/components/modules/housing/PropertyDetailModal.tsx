@@ -50,10 +50,7 @@ interface Note {
   content: string;
   note_type: string;
   created_at: string;
-  author: {
-    first_name: string;
-    last_name: string;
-  } | null;
+  author_id: string | null;
 }
 
 interface PropertyDetailModalProps {
@@ -106,10 +103,7 @@ export function PropertyDetailModal({ isOpen, onClose, propertyId }: PropertyDet
     try {
       const { data, error } = await (supabase as any)
         .from('property_notes')
-        .select(`
-          id, content, note_type, created_at,
-          author:users(first_name, last_name)
-        `)
+        .select('id, content, note_type, created_at, author_id')
         .eq('property_id', propertyId)
         .order('created_at', { ascending: false });
 
@@ -754,11 +748,7 @@ export function PropertyDetailModal({ isOpen, onClose, propertyId }: PropertyDet
                   <div key={note.id} className="bg-gray-50 rounded-lg p-3">
                     <p className="text-sm text-gray-900">{note.content}</p>
                     <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-                      <User className="w-3 h-3" />
-                      <span>
-                        {note.author?.first_name} {note.author?.last_name}
-                      </span>
-                      <span>•</span>
+                      <MessageSquare className="w-3 h-3" />
                       <span>{format(new Date(note.created_at), 'MMM d, yyyy h:mm a')}</span>
                     </div>
                   </div>

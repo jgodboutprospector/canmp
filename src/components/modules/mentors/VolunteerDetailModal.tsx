@@ -88,10 +88,7 @@ export function VolunteerDetailModal({ volunteer, onClose, onUpdate }: Volunteer
     try {
       const { data, error } = await (supabase as any)
         .from('volunteer_notes')
-        .select(`
-          *,
-          author:users(first_name, last_name)
-        `)
+        .select('id, content, note_type, created_at, author_id')
         .eq('volunteer_id', volunteer.id)
         .order('created_at', { ascending: false });
 

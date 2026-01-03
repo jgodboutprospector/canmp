@@ -128,10 +128,7 @@ export function BeneficiaryDetailModal({
     try {
       const { data, error } = await (supabase as any)
         .from('beneficiary_notes')
-        .select(`
-          id, content, note_type, is_confidential, created_at,
-          author:users(first_name, last_name)
-        `)
+        .select('id, content, note_type, is_confidential, created_at, author_id')
         .eq('beneficiary_id', beneficiaryId)
         .order('created_at', { ascending: false });
 
