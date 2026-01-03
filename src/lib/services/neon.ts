@@ -274,8 +274,11 @@ class NeonClient {
 
       const data = await response.json();
 
+      // Log the response for debugging
+      console.log('Neon listAccounts response:', JSON.stringify(data).substring(0, 500));
+
       if (data.listAccountsResponse?.operationResult !== 'SUCCESS') {
-        console.error('Neon listAccounts failed:', data.listAccountsResponse?.responseMessage);
+        console.error('Neon listAccounts failed:', data.listAccountsResponse?.responseMessage || JSON.stringify(data));
         return { data: [], pagination: { currentPage: 1, totalPages: 1, totalResults: 0 } };
       }
 
