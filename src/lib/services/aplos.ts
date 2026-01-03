@@ -3,8 +3,9 @@
  *
  * API Documentation: https://www.aplos.com/api
  *
- * Authentication: OAuth2 Client Credentials
+ * Authentication: Public-Key Cryptography
  * - Set APLOS_CLIENT_ID and APLOS_PRIVATE_KEY in .env.local
+ * - The API returns an encrypted token that must be decrypted with the private key
  *
  * Features:
  * - Transactions management
@@ -13,6 +14,8 @@
  * - Funds management
  * - Chart of accounts
  */
+
+import * as crypto from 'crypto';
 
 // ============================================
 // Types for Aplos API responses
@@ -104,47 +107,57 @@ class AplosClient {
   private tokenExpiry: Date | null = null;
 
   constructor() {
-    this.baseUrl = process.env.APLOS_API_BASE_URL || 'https://www.aplos.com/hermes/api/v1';
+    // Note: Aplos uses app.aplos.com for API, not www.aplos.com
+    this.baseUrl = process.env.APLOS_API_BASE_URL || 'https://app.aplos.com/hermes/api/v1';
     this.clientId = process.env.APLOS_CLIENT_ID || '';
     // Handle multiline private key from env var
     this.privateKey = (process.env.APLOS_PRIVATE_KEY || '').replace(/\\n/g, '\n');
   }
 
+  /**
+   * Decrypt the encrypted token returned by Aplos using RSA private key
+   * Aplos encrypts the access token with your public key, so you must decrypt with private key
+   */
+  private decryptToken(encryptedToken: string): string {
+    try {
+      // Decode base64 encrypted token
+      const encryptedBuffer = Buffer.from(encryptedToken, 'base64');
+
+      // Decrypt using RSA with PKCS1 v1.5 padding (what Aplos uses)
+      const decrypted = crypto.privateDecrypt(
+        {
+          key: this.privateKey,
+          padding: crypto.constants.RSA_PKCS1_PADDING,
+        },
+        encryptedBuffer
+      );
+
+      return decrypted.toString('utf8');
+    } catch (error) {
+      console.error('Token decryption failed:', error);
+      throw new Error(`Failed to decrypt Aplos token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
   private async getAccessToken(): Promise<string> {
-    // Check if we have a valid token
+    // Check if we have a valid token (tokens expire after 30 minutes)
     if (this.accessToken && this.tokenExpiry && this.tokenExpiry > new Date()) {
       return this.accessToken;
     }
 
-    // For Aplos API with private key authentication:
-    // The private key is used to sign JWT tokens for authentication
-    // Since we're in a browser/edge runtime without crypto.subtle for RSA,
-    // we'll use a simplified approach - the token endpoint with client credentials
+    if (!this.clientId || !this.privateKey) {
+      throw new Error('Aplos credentials not configured. Set APLOS_CLIENT_ID and APLOS_PRIVATE_KEY.');
+    }
 
-    // Create JWT assertion for authentication
-    const now = Math.floor(Date.now() / 1000);
-    const payload = {
-      iss: this.clientId,
-      sub: this.clientId,
-      aud: `${this.baseUrl}/auth/token`,
-      iat: now,
-      exp: now + 300, // 5 minutes
-    };
+    // Request encrypted token from Aplos auth endpoint
+    // The clientId is part of the URL path, not a query parameter
+    const authUrl = `${this.baseUrl}/auth/${this.clientId}`;
 
-    // Note: In production, you would use a JWT library to sign with the private key
-    // For now, we'll attempt a simpler auth method or return demo data
-
-    // Request token using client assertion
-    const response = await fetch(`${this.baseUrl}/auth/token`, {
-      method: 'POST',
+    const response = await fetch(authUrl, {
+      method: 'GET',
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
       },
-      body: new URLSearchParams({
-        grant_type: 'client_credentials',
-        client_id: this.clientId,
-        // The actual implementation would include a signed JWT assertion
-      }).toString(),
     });
 
     if (!response.ok) {
@@ -153,11 +166,22 @@ class AplosClient {
     }
 
     const data = await response.json();
-    this.accessToken = data.access_token;
-    // Set expiry to 5 minutes before actual expiry
-    this.tokenExpiry = new Date(Date.now() + (data.expires_in - 300) * 1000);
 
-    return this.accessToken!;
+    // The response contains an encrypted token that we must decrypt with our private key
+    // Response format: { "data": { "token": "base64_encrypted_token", "expires": "..." } }
+    const encryptedToken = data.data?.token || data.token;
+
+    if (!encryptedToken) {
+      throw new Error('No token in Aplos auth response');
+    }
+
+    // Decrypt the token using our private key
+    this.accessToken = this.decryptToken(encryptedToken);
+
+    // Set expiry to 25 minutes (tokens expire after 30 minutes)
+    this.tokenExpiry = new Date(Date.now() + 25 * 60 * 1000);
+
+    return this.accessToken;
   }
 
   private async request<T>(
@@ -170,7 +194,8 @@ class AplosClient {
     const response = await fetch(url, {
       ...options,
       headers: {
-        'Authorization': `Bearer ${token}`,
+        // Aplos uses "Bearer:" (with colon) per their documentation
+        'Authorization': `Bearer: ${token}`,
         'Content-Type': 'application/json',
         ...options.headers,
       },
