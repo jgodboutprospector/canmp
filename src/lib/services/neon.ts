@@ -262,7 +262,7 @@ class NeonClient {
       const response = await fetch(`${this.baseUrl}/account/listAccounts?${params.toString()}`, {
         method: 'GET',
         headers: {
-          'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
       });
 
@@ -362,7 +362,7 @@ class NeonClient {
       const response = await fetch(`${this.baseUrl}/donation/listDonations?${params.toString()}`, {
         method: 'GET',
         headers: {
-          'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
       });
 
