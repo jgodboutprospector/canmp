@@ -17,6 +17,8 @@ import {
   Send,
   Edit2,
   Languages,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Household, Beneficiary, Site, CaseNote } from '@/types/database';
@@ -38,6 +40,7 @@ interface HouseholdDetailModalProps {
   onClose: () => void;
   householdId: string;
   onBeneficiaryClick?: (beneficiaryId: string) => void;
+  onDelete?: () => void;
 }
 
 const COUNTRIES = [
@@ -58,6 +61,7 @@ export function HouseholdDetailModal({
   onClose,
   householdId,
   onBeneficiaryClick,
+  onDelete,
 }: HouseholdDetailModalProps) {
   const [household, setHousehold] = useState<HouseholdWithRelations | null>(null);
   const [sites, setSites] = useState<Site[]>([]);
@@ -70,6 +74,8 @@ export function HouseholdDetailModal({
   const [saving, setSaving] = useState(false);
   const [newNote, setNewNote] = useState('');
   const [savingNote, setSavingNote] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (isOpen && householdId) {
@@ -183,6 +189,25 @@ export function HouseholdDetailModal({
       console.error('Error adding note:', err);
     } finally {
       setSavingNote(false);
+    }
+  }
+
+  async function deleteHousehold() {
+    setDeleting(true);
+    try {
+      const { error } = await (supabase as any)
+        .from('households')
+        .delete()
+        .eq('id', householdId);
+
+      if (error) throw error;
+
+      onClose();
+      onDelete?.();
+    } catch (err) {
+      console.error('Error deleting household:', err);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -593,8 +618,50 @@ export function HouseholdDetailModal({
           </div>
         )}
 
+        {/* Delete Confirmation */}
+        {showDeleteConfirm && (
+          <div className="mb-4 p-4 bg-red-50 rounded-lg border border-red-200">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="font-medium text-red-800">Delete Household?</h4>
+                <p className="text-sm text-red-600 mt-1">
+                  This will permanently delete {household.name} and all associated members and case notes. This action cannot be undone.
+                </p>
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => setShowDeleteConfirm(false)}
+                    className="px-3 py-1.5 text-sm bg-white text-gray-700 rounded border border-gray-300 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={deleteHousehold}
+                    disabled={deleting}
+                    className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-1"
+                  >
+                    {deleting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                    Delete Household
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Footer */}
-        <div className="mt-6 pt-4 border-t border-gray-200 flex justify-end">
+        <div className="mt-6 pt-4 border-t border-gray-200 flex justify-between">
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg font-medium flex items-center gap-2"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete
+          </button>
           <button
             onClick={onClose}
             className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"

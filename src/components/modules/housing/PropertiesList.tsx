@@ -178,6 +178,7 @@ export default function PropertiesList() {
           isOpen={!!selectedPropertyId}
           onClose={() => setSelectedPropertyId(null)}
           propertyId={selectedPropertyId}
+          onDelete={refetch}
         />
       )}
     </div>

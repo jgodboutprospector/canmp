@@ -1,73 +1,73 @@
 'use client';
 
-import { useState } from 'react';
-import { Plus, Search, ChevronRight, AlertTriangle, Clock, CheckCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Search, ChevronRight, AlertTriangle, Clock, CheckCircle, Loader2 } from 'lucide-react';
 import { cn, formatDate, getWorkOrderStatusLabel, getStatusBadgeVariant, getPriorityBadgeVariant, getCategoryEmoji } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
 import { AddWorkOrderModal } from './AddWorkOrderModal';
+import { WorkOrderDetailModal } from './WorkOrderDetailModal';
+import type { WorkOrderCategory, WorkOrderPriority, WorkOrderStatus } from '@/types/database';
 
-// Mock data - will be replaced with Supabase query
-const workOrders = [
-  {
-    id: '1',
-    title: 'Leaking faucet in kitchen',
-    property: '18 Union Street',
-    unit: 'Unit 1',
-    household: 'Aldeek Family',
-    category: 'plumbing',
-    priority: 'medium',
-    status: 'in_progress',
-    reportedDate: '2025-12-10',
-    assignedTo: 'Jim Godbout Plumbing',
-    scheduledDate: '2025-12-14',
-  },
-  {
-    id: '2',
-    title: 'Furnace not heating properly',
-    property: '12 Chapel Street',
-    unit: 'Unit 1',
-    household: 'Bozan Family',
-    category: 'hvac',
-    priority: 'urgent',
-    status: 'open',
-    reportedDate: '2025-12-13',
-  },
-  {
-    id: '3',
-    title: 'Smoke detector batteries',
-    property: '37 Pearl Street',
-    unit: 'Unit A',
-    household: 'Posso Family',
-    category: 'safety',
-    priority: 'low',
-    status: 'open',
-    reportedDate: '2025-12-08',
-  },
-  {
-    id: '4',
-    title: 'Dishwasher not draining',
-    property: '20 Union Street',
-    unit: 'Unit 2',
-    household: 'Okonkwo Family',
-    category: 'appliance',
-    priority: 'medium',
-    status: 'completed',
-    reportedDate: '2025-12-01',
-    completedDate: '2025-12-03',
-    cost: 175,
-  },
-];
+interface WorkOrder {
+  id: string;
+  title: string;
+  description: string | null;
+  category: WorkOrderCategory;
+  priority: WorkOrderPriority;
+  status: WorkOrderStatus;
+  reported_date: string;
+  scheduled_date: string | null;
+  completed_date: string | null;
+  assigned_to: string | null;
+  cost: number | null;
+  property: {
+    id: string;
+    name: string;
+  } | null;
+  unit: {
+    id: string;
+    unit_number: string;
+  } | null;
+}
 
 export default function WorkOrdersList() {
+  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [selectedWorkOrderId, setSelectedWorkOrderId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState('all');
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
+
+  useEffect(() => {
+    fetchWorkOrders();
+  }, []);
+
+  async function fetchWorkOrders() {
+    try {
+      const { data, error } = await (supabase as any)
+        .from('work_orders')
+        .select(`
+          id, title, description, category, priority, status,
+          reported_date, scheduled_date, completed_date, assigned_to, cost,
+          property:properties(id, name),
+          unit:units(id, unit_number)
+        `)
+        .order('reported_date', { ascending: false });
+
+      if (error) throw error;
+      setWorkOrders(data || []);
+    } catch (err) {
+      console.error('Error fetching work orders:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const filtered = workOrders.filter((wo) => {
     const matchesSearch =
       wo.title.toLowerCase().includes(search.toLowerCase()) ||
-      wo.property.toLowerCase().includes(search.toLowerCase()) ||
-      wo.household.toLowerCase().includes(search.toLowerCase());
+      (wo.property?.name?.toLowerCase().includes(search.toLowerCase()) ?? false);
     const matchesStatus = filterStatus === 'all' || wo.status === filterStatus;
     return matchesSearch && matchesStatus;
   });
@@ -76,6 +76,15 @@ export default function WorkOrdersList() {
   const inProgressCount = workOrders.filter((wo) => wo.status === 'in_progress' || wo.status === 'scheduled').length;
   const urgentCount = workOrders.filter((wo) => wo.priority === 'urgent' && wo.status !== 'completed').length;
   const completedCount = workOrders.filter((wo) => wo.status === 'completed').length;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-12">
+        <Loader2 className="w-8 h-8 animate-spin text-canmp-green-500" />
+        <span className="ml-2 text-gray-500">Loading work orders...</span>
+      </div>
+    );
+  }
 
   // Kanban columns
   const kanbanColumns = [
@@ -205,19 +214,22 @@ export default function WorkOrdersList() {
             </thead>
             <tbody>
               {filtered.map((wo) => (
-                <tr key={wo.id} className="table-row cursor-pointer">
+                <tr
+                  key={wo.id}
+                  onClick={() => setSelectedWorkOrderId(wo.id)}
+                  className="table-row cursor-pointer"
+                >
                   <td className="table-cell">
                     <div className="flex items-center gap-3">
                       <span className="text-xl">{getCategoryEmoji(wo.category)}</span>
                       <div>
                         <p className="font-medium text-gray-900">{wo.title}</p>
-                        <p className="text-sm text-gray-500">{wo.household}</p>
                       </div>
                     </div>
                   </td>
                   <td className="table-cell">
-                    <p className="font-medium text-gray-900">{wo.property}</p>
-                    <p className="text-sm text-gray-500">{wo.unit}</p>
+                    <p className="font-medium text-gray-900">{wo.property?.name || '-'}</p>
+                    <p className="text-sm text-gray-500">{wo.unit ? `Unit ${wo.unit.unit_number}` : ''}</p>
                   </td>
                   <td className="table-cell">
                     <span className={`badge badge-${getPriorityBadgeVariant(wo.priority)}`}>
@@ -230,10 +242,10 @@ export default function WorkOrdersList() {
                     </span>
                   </td>
                   <td className="table-cell text-gray-500">
-                    {formatDate(wo.reportedDate)}
+                    {formatDate(wo.reported_date)}
                   </td>
                   <td className="table-cell text-gray-700">
-                    {wo.assignedTo || '-'}
+                    {wo.assigned_to || '-'}
                   </td>
                   <td className="table-cell text-right">
                     <ChevronRight className="w-5 h-5 text-gray-400" />
@@ -263,13 +275,14 @@ export default function WorkOrdersList() {
                   {columnOrders.map((wo) => (
                     <div
                       key={wo.id}
+                      onClick={() => setSelectedWorkOrderId(wo.id)}
                       className="card p-4 cursor-pointer hover:shadow-md transition-shadow"
                     >
                       <div className="flex items-start gap-3 mb-3">
                         <span className="text-xl">{getCategoryEmoji(wo.category)}</span>
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-gray-900 text-sm truncate">{wo.title}</p>
-                          <p className="text-xs text-gray-500">{wo.property}</p>
+                          <p className="text-xs text-gray-500">{wo.property?.name || '-'}</p>
                         </div>
                       </div>
                       <div className="flex justify-between items-center">
@@ -277,7 +290,7 @@ export default function WorkOrdersList() {
                           {wo.priority}
                         </span>
                         <span className="text-xs text-gray-400">
-                          {formatDate(wo.reportedDate, 'MMM d')}
+                          {formatDate(wo.reported_date, 'MMM d')}
                         </span>
                       </div>
                     </div>
@@ -299,10 +312,21 @@ export default function WorkOrdersList() {
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
         onSuccess={() => {
-          // TODO: Refetch work orders when connected to Supabase
+          fetchWorkOrders();
           setShowAddModal(false);
         }}
       />
+
+      {/* Work Order Detail Modal */}
+      {selectedWorkOrderId && (
+        <WorkOrderDetailModal
+          isOpen={!!selectedWorkOrderId}
+          onClose={() => setSelectedWorkOrderId(null)}
+          workOrderId={selectedWorkOrderId}
+          onDelete={fetchWorkOrders}
+          onUpdate={fetchWorkOrders}
+        />
+      )}
     </div>
   );
 }

@@ -15,6 +15,7 @@ import {
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import ParticipantDetailModal from '@/components/modules/workforce/ParticipantDetailModal';
+import { AddParticipantModal } from '@/components/modules/workforce/AddParticipantModal';
 
 const tabs = [
   { name: 'Kanban', href: '/workforce', icon: Briefcase },
@@ -62,6 +63,7 @@ export default function WorkforcePage() {
   const [dragging, setDragging] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<JobStatus | null>(null);
   const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   useEffect(() => {
     fetchParticipants();
@@ -190,7 +192,7 @@ export default function WorkforcePage() {
               Track job seekers through the employment pipeline
             </p>
           </div>
-          <button className="btn-primary">
+          <button onClick={() => setShowAddModal(true)} className="btn-primary">
             <Plus className="w-4 h-4" />
             Add Participant
           </button>
@@ -303,6 +305,16 @@ export default function WorkforcePage() {
           onStatusChange={updateParticipantStatus}
         />
       )}
+
+      {/* Add Participant Modal */}
+      <AddParticipantModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSuccess={() => {
+          setShowAddModal(false);
+          fetchParticipants();
+        }}
+      />
     </div>
   );
 }

@@ -208,6 +208,7 @@ export default function HouseholdsList() {
           isOpen={!!selectedHouseholdId}
           onClose={() => setSelectedHouseholdId(null)}
           householdId={selectedHouseholdId}
+          onDelete={refetch}
         />
       )}
     </div>

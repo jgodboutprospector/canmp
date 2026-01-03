@@ -299,6 +299,7 @@ export default function IndividualsPage() {
           onClose={() => setSelectedId(null)}
           beneficiaryId={selectedId}
           onSave={fetchBeneficiaries}
+          onDelete={fetchBeneficiaries}
         />
       )}
 

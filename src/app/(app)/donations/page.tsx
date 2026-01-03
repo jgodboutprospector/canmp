@@ -14,6 +14,8 @@ import {
   Calendar,
   MapPin,
   Check,
+  Edit2,
+  Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -80,6 +82,7 @@ export default function DonationsPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<DonationItem | null>(null);
+  const [editingItem, setEditingItem] = useState<DonationItem | null>(null);
 
   // Add form state
   const [newItem, setNewItem] = useState({
@@ -120,34 +123,94 @@ export default function DonationsPage() {
     }
   }
 
-  async function addItem() {
+  function resetForm() {
+    setNewItem({
+      name: '',
+      description: '',
+      category: 'furniture',
+      condition: 'good',
+      quantity: 1,
+      location: '',
+      bin_number: '',
+      donor_name: '',
+      donor_phone: '',
+      donor_email: '',
+    });
+    setEditingItem(null);
+  }
+
+  async function handleSubmit() {
     setSaving(true);
     try {
-      const { error } = await (supabase as any).from('donation_items').insert({
-        ...newItem,
-        status: 'available',
-      });
+      const itemData = {
+        name: newItem.name.trim(),
+        description: newItem.description.trim() || null,
+        category: newItem.category,
+        condition: newItem.condition,
+        quantity: newItem.quantity,
+        location: newItem.location.trim() || null,
+        bin_number: newItem.bin_number.trim() || null,
+        donor_name: newItem.donor_name.trim() || null,
+        donor_phone: newItem.donor_phone.trim() || null,
+        donor_email: newItem.donor_email.trim() || null,
+      };
 
-      if (error) throw error;
+      if (editingItem) {
+        const { error } = await (supabase as any)
+          .from('donation_items')
+          .update(itemData)
+          .eq('id', editingItem.id);
+        if (error) throw error;
+      } else {
+        const { error } = await (supabase as any).from('donation_items').insert({
+          ...itemData,
+          status: 'available',
+          donated_date: new Date().toISOString().split('T')[0],
+        });
+        if (error) throw error;
+      }
 
       setShowAddModal(false);
-      setNewItem({
-        name: '',
-        description: '',
-        category: 'furniture',
-        condition: 'good',
-        quantity: 1,
-        location: '',
-        bin_number: '',
-        donor_name: '',
-        donor_phone: '',
-        donor_email: '',
-      });
+      resetForm();
       await fetchItems();
     } catch (err) {
-      console.error('Error adding item:', err);
+      console.error('Error saving item:', err);
     } finally {
       setSaving(false);
+    }
+  }
+
+  function startEdit(item: DonationItem) {
+    setEditingItem(item);
+    setNewItem({
+      name: item.name,
+      description: item.description || '',
+      category: item.category,
+      condition: item.condition || 'good',
+      quantity: item.quantity,
+      location: item.location || '',
+      bin_number: item.bin_number || '',
+      donor_name: item.donor_name || '',
+      donor_phone: '',
+      donor_email: '',
+    });
+    setSelectedItem(null);
+    setShowAddModal(true);
+  }
+
+  async function deleteItem(itemId: string) {
+    if (!confirm('Are you sure you want to delete this donation item?')) return;
+
+    try {
+      const { error } = await (supabase as any)
+        .from('donation_items')
+        .update({ is_active: false })
+        .eq('id', itemId);
+      if (error) throw error;
+      await fetchItems();
+      setSelectedItem(null);
+    } catch (err) {
+      console.error('Error deleting item:', err);
     }
   }
 
@@ -408,8 +471,16 @@ export default function DonationsPage() {
         </div>
       )}
 
-      {/* Add Item Modal */}
-      <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Add Donation Item" size="lg">
+      {/* Add/Edit Item Modal */}
+      <Modal
+        isOpen={showAddModal}
+        onClose={() => {
+          setShowAddModal(false);
+          resetForm();
+        }}
+        title={editingItem ? 'Edit Donation Item' : 'Add Donation Item'}
+        size="lg"
+      >
         <div className="px-6 pb-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
@@ -500,18 +571,21 @@ export default function DonationsPage() {
 
           <div className="flex gap-2 justify-end pt-4 border-t">
             <button
-              onClick={() => setShowAddModal(false)}
+              onClick={() => {
+                setShowAddModal(false);
+                resetForm();
+              }}
               className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
             >
               Cancel
             </button>
             <button
-              onClick={addItem}
+              onClick={handleSubmit}
               disabled={saving || !newItem.name}
               className="btn-primary"
             >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              Add Item
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : editingItem ? null : <Plus className="w-4 h-4" />}
+              {editingItem ? 'Update Item' : 'Add Item'}
             </button>
           </div>
         </div>
@@ -526,6 +600,24 @@ export default function DonationsPage() {
           size="lg"
         >
           <div className="px-6 pb-6">
+            {/* Edit/Delete buttons */}
+            <div className="flex justify-end gap-2 mb-4">
+              <button
+                onClick={() => startEdit(selectedItem)}
+                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+                title="Edit item"
+              >
+                <Edit2 className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => deleteItem(selectedItem.id)}
+                className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                title="Delete item"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+
             <div className="grid grid-cols-2 gap-4 mb-6">
               <div className="bg-gray-50 rounded-lg p-3">
                 <p className="text-xs text-gray-500 mb-1">Category</p>

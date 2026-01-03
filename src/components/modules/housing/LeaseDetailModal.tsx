@@ -14,6 +14,8 @@ import {
   Calendar,
   Home,
   Edit2,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import FileUpload from '@/components/ui/FileUpload';
@@ -79,6 +81,7 @@ interface LeaseDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   leaseId: string;
+  onDelete?: () => void;
 }
 
 const DOCUMENT_TYPES = [
@@ -91,12 +94,14 @@ const DOCUMENT_TYPES = [
   { value: 'other', label: 'Other' },
 ];
 
-export function LeaseDetailModal({ isOpen, onClose, leaseId }: LeaseDetailModalProps) {
+export function LeaseDetailModal({ isOpen, onClose, leaseId, onDelete }: LeaseDetailModalProps) {
   const [lease, setLease] = useState<Lease | null>(null);
   const [rentLedger, setRentLedger] = useState<RentLedger[]>([]);
   const [documents, setDocuments] = useState<LeaseDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'rent' | 'documents'>('overview');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Rent tracking state
   const [viewMonth, setViewMonth] = useState(startOfMonth(new Date()));
@@ -344,6 +349,25 @@ export function LeaseDetailModal({ isOpen, onClose, leaseId }: LeaseDetailModalP
       console.error('Error saving rent entry:', err);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function deleteLease() {
+    setDeleting(true);
+    try {
+      const { error } = await (supabase as any)
+        .from('leases')
+        .delete()
+        .eq('id', leaseId);
+
+      if (error) throw error;
+
+      onClose();
+      onDelete?.();
+    } catch (err) {
+      console.error('Error deleting lease:', err);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -793,8 +817,50 @@ export function LeaseDetailModal({ isOpen, onClose, leaseId }: LeaseDetailModalP
           </div>
         )}
 
+        {/* Delete Confirmation */}
+        {showDeleteConfirm && (
+          <div className="mb-4 p-4 bg-red-50 rounded-lg border border-red-200">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="font-medium text-red-800">Delete Lease?</h4>
+                <p className="text-sm text-red-600 mt-1">
+                  This will permanently delete this lease for {lease.household?.name || 'this household'} and all associated rent records. This action cannot be undone.
+                </p>
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => setShowDeleteConfirm(false)}
+                    className="px-3 py-1.5 text-sm bg-white text-gray-700 rounded border border-gray-300 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={deleteLease}
+                    disabled={deleting}
+                    className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-1"
+                  >
+                    {deleting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                    Delete Lease
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Footer */}
-        <div className="mt-6 pt-4 border-t border-gray-200 flex justify-end">
+        <div className="mt-6 pt-4 border-t border-gray-200 flex justify-between">
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg font-medium flex items-center gap-2"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete
+          </button>
           <button
             onClick={onClose}
             className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"

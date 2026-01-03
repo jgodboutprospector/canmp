@@ -301,6 +301,7 @@ export default function LeasesList() {
           isOpen={!!selectedLeaseId}
           onClose={() => setSelectedLeaseId(null)}
           leaseId={selectedLeaseId}
+          onDelete={fetchLeases}
         />
       )}
     </div>
