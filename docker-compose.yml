@@ -21,6 +21,12 @@ services:
       - NEON_CRM_ORG_ID=${NEON_CRM_ORG_ID}
       - NEON_CRM_API_KEY=${NEON_CRM_API_KEY}
       - SYNC_API_KEY=${SYNC_API_KEY}
+      - APLOS_API_BASE_URL=${APLOS_API_BASE_URL}
+      - APLOS_CLIENT_ID=${APLOS_CLIENT_ID}
+      - APLOS_PRIVATE_KEY=${APLOS_PRIVATE_KEY}
+      - RAMP_API_BASE_URL=${RAMP_API_BASE_URL}
+      - RAMP_CLIENT_ID=${RAMP_CLIENT_ID}
+      - RAMP_CLIENT_SECRET=${RAMP_CLIENT_SECRET}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/"]
       interval: 30s

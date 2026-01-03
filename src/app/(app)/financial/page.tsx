@@ -16,12 +16,17 @@ import {
   ArrowDownRight,
   Calendar,
   ChevronRight,
+  ChevronDown,
   Loader2,
   AlertCircle,
   CheckCircle,
   Clock,
   XCircle,
   Info,
+  Hash,
+  Tag,
+  User,
+  MapPin,
 } from 'lucide-react';
 import {
   BarChart,
@@ -139,6 +144,32 @@ export default function FinancialPage() {
   const [dateRange, setDateRange] = useState<DateRangeType>('month');
   const [selectedFund, setSelectedFund] = useState<string>('all');
   const [syncing, setSyncing] = useState(false);
+  const [expandedAplosRows, setExpandedAplosRows] = useState<Set<string>>(new Set());
+  const [expandedRampRows, setExpandedRampRows] = useState<Set<string>>(new Set());
+
+  const toggleAplosRow = (id: string) => {
+    setExpandedAplosRows(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleRampRow = (id: string) => {
+    setExpandedRampRows(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   // Fetch data using hooks
   const { aplosData, rampData, loading: dashboardLoading, isDemo, refresh: refreshDashboard } = useFinancialDashboard();
@@ -586,6 +617,7 @@ export default function FinancialPage() {
               <table className="w-full">
                 <thead className="bg-gray-50 border-b">
                   <tr>
+                    <th className="w-8 px-2"></th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fund</th>
@@ -595,32 +627,94 @@ export default function FinancialPage() {
                 </thead>
                 <tbody className="divide-y">
                   {aplosTransactions.map(txn => (
-                    <tr key={txn.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-500">{formatDate(txn.date)}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className={cn(
-                            'w-6 h-6 rounded flex items-center justify-center',
-                            txn.type === 'credit' ? 'bg-green-100' : 'bg-red-100'
-                          )}>
-                            {txn.type === 'credit' ? (
-                              <ArrowUpRight className="w-3 h-3 text-green-600" />
-                            ) : (
-                              <ArrowDownRight className="w-3 h-3 text-red-600" />
-                            )}
+                    <>
+                      <tr
+                        key={txn.id}
+                        className="hover:bg-gray-50 cursor-pointer"
+                        onClick={() => toggleAplosRow(txn.id)}
+                      >
+                        <td className="px-2 py-3">
+                          {expandedAplosRows.has(txn.id) ? (
+                            <ChevronDown className="w-4 h-4 text-gray-400" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4 text-gray-400" />
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-500">{formatDate(txn.date)}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className={cn(
+                              'w-6 h-6 rounded flex items-center justify-center',
+                              txn.type === 'credit' ? 'bg-green-100' : 'bg-red-100'
+                            )}>
+                              {txn.type === 'credit' ? (
+                                <ArrowUpRight className="w-3 h-3 text-green-600" />
+                              ) : (
+                                <ArrowDownRight className="w-3 h-3 text-red-600" />
+                              )}
+                            </div>
+                            <span className="text-sm font-medium text-gray-900">{txn.memo}</span>
                           </div>
-                          <span className="text-sm font-medium text-gray-900">{txn.memo}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">{txn.fund_name}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500">{txn.account_name}</td>
-                      <td className={cn(
-                        'px-4 py-3 text-sm font-medium text-right',
-                        txn.type === 'credit' ? 'text-green-600' : 'text-red-600'
-                      )}>
-                        {txn.type === 'credit' ? '+' : '-'}{formatCurrency(txn.amount)}
-                      </td>
-                    </tr>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-500">{txn.fund_name}</td>
+                        <td className="px-4 py-3 text-sm text-gray-500">{txn.account_name}</td>
+                        <td className={cn(
+                          'px-4 py-3 text-sm font-medium text-right',
+                          txn.type === 'credit' ? 'text-green-600' : 'text-red-600'
+                        )}>
+                          {txn.type === 'credit' ? '+' : '-'}{formatCurrency(txn.amount)}
+                        </td>
+                      </tr>
+                      {expandedAplosRows.has(txn.id) && (
+                        <tr key={`${txn.id}-details`} className="bg-gray-50">
+                          <td colSpan={6} className="px-4 py-4">
+                            <div className="ml-6 grid grid-cols-4 gap-6">
+                              <div>
+                                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Transaction ID</p>
+                                <div className="flex items-center gap-2">
+                                  <Hash className="w-4 h-4 text-gray-400" />
+                                  <p className="text-sm font-medium text-gray-900">{txn.id}</p>
+                                </div>
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Full Date</p>
+                                <div className="flex items-center gap-2">
+                                  <Calendar className="w-4 h-4 text-gray-400" />
+                                  <p className="text-sm font-medium text-gray-900">
+                                    {new Date(txn.date).toLocaleDateString('en-US', {
+                                      weekday: 'long',
+                                      year: 'numeric',
+                                      month: 'long',
+                                      day: 'numeric'
+                                    })}
+                                  </p>
+                                </div>
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Category</p>
+                                <div className="flex items-center gap-2">
+                                  <Tag className="w-4 h-4 text-gray-400" />
+                                  <p className="text-sm font-medium text-gray-900">{txn.account_name}</p>
+                                </div>
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Type</p>
+                                <span className={cn(
+                                  'inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full',
+                                  txn.type === 'credit' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                )}>
+                                  {txn.type === 'credit' ? 'Income' : 'Expense'}
+                                </span>
+                              </div>
+                              <div className="col-span-4">
+                                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Description</p>
+                                <p className="text-sm text-gray-700">{txn.memo}</p>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
                   ))}
                 </tbody>
               </table>
@@ -845,6 +939,7 @@ export default function FinancialPage() {
               <table className="w-full">
                 <thead className="bg-gray-50 border-b">
                   <tr>
+                    <th className="w-8 px-2"></th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Merchant</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
@@ -855,24 +950,101 @@ export default function FinancialPage() {
                 </thead>
                 <tbody className="divide-y">
                   {rampTransactionsList.map(txn => (
-                    <tr key={txn.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-500">{formatDate(txn.transaction_date)}</td>
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{txn.merchant_name}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500">{txn.category}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500">{txn.card_holder_name}</td>
-                      <td className="px-4 py-3">
-                        <span className={cn(
-                          'inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full capitalize',
-                          getStatusColor(txn.state)
-                        )}>
-                          {getStatusIcon(txn.state)}
-                          {txn.state}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm font-medium text-right text-gray-900">
-                        {formatCurrency(txn.amount)}
-                      </td>
-                    </tr>
+                    <>
+                      <tr
+                        key={txn.id}
+                        className="hover:bg-gray-50 cursor-pointer"
+                        onClick={() => toggleRampRow(txn.id)}
+                      >
+                        <td className="px-2 py-3">
+                          {expandedRampRows.has(txn.id) ? (
+                            <ChevronDown className="w-4 h-4 text-gray-400" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4 text-gray-400" />
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-500">{formatDate(txn.transaction_date)}</td>
+                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{txn.merchant_name}</td>
+                        <td className="px-4 py-3 text-sm text-gray-500">{txn.category}</td>
+                        <td className="px-4 py-3 text-sm text-gray-500">{txn.card_holder_name}</td>
+                        <td className="px-4 py-3">
+                          <span className={cn(
+                            'inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full capitalize',
+                            getStatusColor(txn.state)
+                          )}>
+                            {getStatusIcon(txn.state)}
+                            {txn.state}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm font-medium text-right text-gray-900">
+                          {formatCurrency(txn.amount)}
+                        </td>
+                      </tr>
+                      {expandedRampRows.has(txn.id) && (
+                        <tr key={`${txn.id}-details`} className="bg-gray-50">
+                          <td colSpan={7} className="px-4 py-4">
+                            <div className="ml-6 grid grid-cols-4 gap-6">
+                              <div>
+                                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Transaction ID</p>
+                                <div className="flex items-center gap-2">
+                                  <Hash className="w-4 h-4 text-gray-400" />
+                                  <p className="text-sm font-medium text-gray-900">{txn.id}</p>
+                                </div>
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Full Date</p>
+                                <div className="flex items-center gap-2">
+                                  <Calendar className="w-4 h-4 text-gray-400" />
+                                  <p className="text-sm font-medium text-gray-900">
+                                    {new Date(txn.transaction_date).toLocaleDateString('en-US', {
+                                      weekday: 'long',
+                                      year: 'numeric',
+                                      month: 'long',
+                                      day: 'numeric'
+                                    })}
+                                  </p>
+                                </div>
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Category</p>
+                                <div className="flex items-center gap-2">
+                                  <Tag className="w-4 h-4 text-gray-400" />
+                                  <p className="text-sm font-medium text-gray-900">{txn.category}</p>
+                                </div>
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Cardholder</p>
+                                <div className="flex items-center gap-2">
+                                  <User className="w-4 h-4 text-gray-400" />
+                                  <p className="text-sm font-medium text-gray-900">{txn.card_holder_name}</p>
+                                </div>
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Merchant</p>
+                                <div className="flex items-center gap-2">
+                                  <MapPin className="w-4 h-4 text-gray-400" />
+                                  <p className="text-sm font-medium text-gray-900">{txn.merchant_name}</p>
+                                </div>
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Status</p>
+                                <span className={cn(
+                                  'inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full capitalize',
+                                  getStatusColor(txn.state)
+                                )}>
+                                  {getStatusIcon(txn.state)}
+                                  {txn.state}
+                                </span>
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Amount</p>
+                                <p className="text-sm font-semibold text-gray-900">{formatCurrency(txn.amount)}</p>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
                   ))}
                 </tbody>
               </table>
