@@ -229,13 +229,15 @@ class AplosClient {
   // ============================================
 
   async getFunds(): Promise<AplosFund[]> {
-    const response = await this.request<AplosApiResponse<AplosFund[]>>('/funds');
-    return response.data;
+    // Aplos returns { data: { funds: [...] } }
+    const response = await this.request<{ data: { funds: AplosFund[] } }>('/funds');
+    return response.data?.funds || [];
   }
 
-  async getFund(fundId: string): Promise<AplosFund> {
-    const response = await this.request<AplosApiResponse<AplosFund>>(`/funds/${fundId}`);
-    return response.data;
+  async getFund(fundId: string): Promise<AplosFund | null> {
+    // Aplos returns { data: { fund: {...} } }
+    const response = await this.request<{ data: { fund: AplosFund } }>(`/funds/${fundId}`);
+    return response.data?.fund || null;
   }
 
   // ============================================
@@ -243,13 +245,15 @@ class AplosClient {
   // ============================================
 
   async getAccounts(): Promise<AplosAccount[]> {
-    const response = await this.request<AplosApiResponse<AplosAccount[]>>('/accounts');
-    return response.data;
+    // Aplos returns { data: { accounts: [...] } }
+    const response = await this.request<{ data: { accounts: AplosAccount[] } }>('/accounts');
+    return response.data?.accounts || [];
   }
 
-  async getAccount(accountNumber: string): Promise<AplosAccount> {
-    const response = await this.request<AplosApiResponse<AplosAccount>>(`/accounts/${accountNumber}`);
-    return response.data;
+  async getAccount(accountNumber: string): Promise<AplosAccount | null> {
+    // Aplos returns { data: { account: {...} } }
+    const response = await this.request<{ data: { account: AplosAccount } }>(`/accounts/${accountNumber}`);
+    return response.data?.account || null;
   }
 
   // ============================================
@@ -263,7 +267,7 @@ class AplosClient {
     end_date?: string;
     page?: number;
     per_page?: number;
-  }): Promise<AplosApiResponse<AplosTransaction[]>> {
+  }): Promise<AplosTransaction[]> {
     const searchParams = new URLSearchParams();
 
     if (params?.fund_id) searchParams.append('fund_id', params.fund_id);
@@ -274,12 +278,15 @@ class AplosClient {
     if (params?.per_page) searchParams.append('per_page', params.per_page.toString());
 
     const query = searchParams.toString();
-    return this.request<AplosApiResponse<AplosTransaction[]>>(`/transactions${query ? `?${query}` : ''}`);
+    // Aplos returns { data: { transactions: [...] } }
+    const response = await this.request<{ data: { transactions: AplosTransaction[] } }>(`/transactions${query ? `?${query}` : ''}`);
+    return response.data?.transactions || [];
   }
 
-  async getTransaction(transactionId: string): Promise<AplosTransaction> {
-    const response = await this.request<AplosApiResponse<AplosTransaction>>(`/transactions/${transactionId}`);
-    return response.data;
+  async getTransaction(transactionId: string): Promise<AplosTransaction | null> {
+    // Aplos returns { data: { transaction: {...} } }
+    const response = await this.request<{ data: { transaction: AplosTransaction } }>(`/transactions/${transactionId}`);
+    return response.data?.transaction || null;
   }
 
   // ============================================
@@ -351,13 +358,12 @@ class AplosClient {
     recentTransactions: AplosTransaction[];
   }> {
     // Fetch multiple data points in parallel
-    const [funds, transactionsResponse] = await Promise.all([
+    const [funds, transactions] = await Promise.all([
       this.getFunds(),
       this.getTransactions({ per_page: 10 }),
     ]);
 
     // Calculate totals from transactions
-    const transactions = transactionsResponse.data;
     const totalIncome = transactions
       .filter(t => t.type === 'credit' && ['revenue', 'income'].some(cat =>
         t.category?.toLowerCase().includes(cat) || t.account_name.toLowerCase().includes(cat)

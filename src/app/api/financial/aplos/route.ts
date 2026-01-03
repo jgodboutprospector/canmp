@@ -81,10 +81,10 @@ export async function GET(request: Request) {
             if (fundId && fundId !== 'all') {
               params.fund_id = fundId;
             }
-            const response = await aplosClient.getTransactions(params);
+            const transactions = await aplosClient.getTransactions(params);
             return NextResponse.json({
               success: true,
-              data: response.data,
+              data: transactions,
               isDemo: false,
             });
           }
