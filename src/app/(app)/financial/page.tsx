@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   DollarSign,
   CreditCard,
@@ -245,7 +245,7 @@ export default function FinancialPage() {
 
   // Memoized calculations
   const fundTotals = useMemo(() => {
-    return funds.reduce((sum, f) => sum + f.balance, 0);
+    return funds.reduce((sum, f) => sum + (f.balance || 0), 0);
   }, [funds]);
 
   const incomeTotal = useMemo(() => {
@@ -519,35 +519,37 @@ export default function FinancialPage() {
                 </button>
               </div>
               <div className="divide-y divide-gray-100">
-                {aplosTransactions.slice(0, 4).map(txn => (
-                  <div key={txn.id} className="p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={cn(
-                        'w-8 h-8 rounded-lg flex items-center justify-center',
-                        txn.type === 'credit' ? 'bg-green-100' : 'bg-red-100'
-                      )}>
-                        {txn.type === 'credit' ? (
-                          <ArrowUpRight className="w-4 h-4 text-green-600" />
-                        ) : (
-                          <ArrowDownRight className="w-4 h-4 text-red-600" />
-                        )}
+                {aplosTransactions.slice(0, 4).map(txn => {
+                  const contactName = txn.contact?.companyname ||
+                    (txn.contact?.firstname && txn.contact?.lastname
+                      ? `${txn.contact.firstname} ${txn.contact.lastname}`
+                      : txn.fund_name || 'Unknown');
+
+                  return (
+                    <div key={String(txn.id)} className="p-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-gray-100">
+                          <Receipt className="w-4 h-4 text-gray-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{txn.memo || contactName}</p>
+                          <p className="text-xs text-gray-500">{contactName}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{txn.memo}</p>
-                        <p className="text-xs text-gray-500">{txn.fund_name}</p>
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-gray-900">
+                          {formatCurrency(txn.amount)}
+                        </p>
+                        <p className="text-xs text-gray-500">{formatDate(txn.date)}</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className={cn(
-                        'text-sm font-medium',
-                        txn.type === 'credit' ? 'text-green-600' : 'text-red-600'
-                      )}>
-                        {txn.type === 'credit' ? '+' : '-'}{formatCurrency(txn.amount)}
-                      </p>
-                      <p className="text-xs text-gray-500">{formatDate(txn.date)}</p>
-                    </div>
+                  );
+                })}
+                {aplosTransactions.length === 0 && (
+                  <div className="p-8 text-center text-gray-400">
+                    No transactions found
                   </div>
-                ))}
+                )}
               </div>
             </div>
 
@@ -591,26 +593,37 @@ export default function FinancialPage() {
           {/* Funds Overview */}
           <div className="card">
             <div className="p-4 border-b border-gray-100">
-              <h3 className="font-medium text-gray-900">Fund Balances</h3>
+              <h3 className="font-medium text-gray-900">Funds ({funds.length})</h3>
             </div>
             <div className="p-4">
               <div className="grid grid-cols-4 gap-4">
-                {funds.map(fund => (
-                  <div key={fund.id} className="p-4 bg-gray-50 rounded-lg">
+                {funds.slice(0, 8).map(fund => (
+                  <div key={String(fund.id)} className="p-4 bg-gray-50 rounded-lg">
                     <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-medium text-gray-900">{fund.name}</p>
+                      <p className="text-sm font-medium text-gray-900 truncate" title={fund.name}>{fund.name}</p>
                       {fund.is_default && (
                         <span className="text-xs px-2 py-0.5 bg-canmp-green-100 text-canmp-green-700 rounded-full">
                           Default
                         </span>
                       )}
                     </div>
-                    <p className="text-xl font-semibold text-gray-900">
-                      {formatCurrency(fund.balance)}
-                    </p>
+                    {fund.balance !== undefined ? (
+                      <p className="text-xl font-semibold text-gray-900">
+                        {formatCurrency(fund.balance)}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-gray-500">
+                        Account: {fund.balance_account_number || 'N/A'}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
+              {funds.length > 8 && (
+                <p className="mt-3 text-sm text-gray-500 text-center">
+                  + {funds.length - 8} more funds
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -644,27 +657,40 @@ export default function FinancialPage() {
           </div>
 
           {/* Filters */}
-          <div className="card p-4 flex gap-4">
-            <select
-              value={selectedFund}
-              onChange={(e) => setSelectedFund(e.target.value)}
-              className="input w-48"
+          <div className="card p-4 flex gap-4 items-center">
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600">Fund:</label>
+              <select
+                value={selectedFund}
+                onChange={(e) => setSelectedFund(e.target.value)}
+                className="input w-64"
+              >
+                <option value="all">All Funds ({funds.length})</option>
+                {funds.map(fund => (
+                  <option key={String(fund.id)} value={String(fund.id)}>{fund.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600">Period:</label>
+              <select
+                value={dateRange}
+                onChange={(e) => setDateRange(e.target.value as DateRangeType)}
+                className="input w-40"
+              >
+                <option value="month">This Month</option>
+                <option value="quarter">This Quarter</option>
+                <option value="ytd">Year to Date</option>
+                <option value="year">Last 12 Months</option>
+              </select>
+            </div>
+            <button
+              onClick={() => refreshTransactions()}
+              className="btn-secondary ml-auto"
             >
-              <option value="all">All Funds</option>
-              {funds.map(fund => (
-                <option key={fund.id} value={fund.id}>{fund.name}</option>
-              ))}
-            </select>
-            <select
-              value={dateRange}
-              onChange={(e) => setDateRange(e.target.value as DateRangeType)}
-              className="input w-40"
-            >
-              <option value="month">This Month</option>
-              <option value="quarter">This Quarter</option>
-              <option value="ytd">Year to Date</option>
-              <option value="year">Last 12 Months</option>
-            </select>
+              <RefreshCw className="w-4 h-4" />
+              Refresh
+            </button>
           </div>
 
           {/* Transactions View */}
@@ -676,21 +702,33 @@ export default function FinancialPage() {
                     <th className="w-8 px-2"></th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fund</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Account</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {aplosTransactions.map(txn => (
-                    <>
+                  {aplosTransactions.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                        No transactions found
+                      </td>
+                    </tr>
+                  ) : aplosTransactions.map(txn => {
+                    const contactName = txn.contact?.companyname ||
+                      (txn.contact?.firstname && txn.contact?.lastname
+                        ? `${txn.contact.firstname} ${txn.contact.lastname}`
+                        : txn.fund_name || 'Unknown');
+                    const description = txn.memo || contactName;
+
+                    return (
+                    <React.Fragment key={String(txn.id)}>
                       <tr
-                        key={txn.id}
                         className="hover:bg-gray-50 cursor-pointer"
-                        onClick={() => toggleAplosRow(txn.id)}
+                        onClick={() => toggleAplosRow(String(txn.id))}
                       >
                         <td className="px-2 py-3">
-                          {expandedAplosRows.has(txn.id) ? (
+                          {expandedAplosRows.has(String(txn.id)) ? (
                             <ChevronDown className="w-4 h-4 text-gray-400" />
                           ) : (
                             <ChevronRight className="w-4 h-4 text-gray-400" />
@@ -699,30 +737,31 @@ export default function FinancialPage() {
                         <td className="px-4 py-3 text-sm text-gray-500">{formatDate(txn.date)}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
-                            <div className={cn(
-                              'w-6 h-6 rounded flex items-center justify-center',
-                              txn.type === 'credit' ? 'bg-green-100' : 'bg-red-100'
-                            )}>
-                              {txn.type === 'credit' ? (
-                                <ArrowUpRight className="w-3 h-3 text-green-600" />
-                              ) : (
-                                <ArrowDownRight className="w-3 h-3 text-red-600" />
-                              )}
+                            <div className="w-6 h-6 rounded flex items-center justify-center bg-gray-100">
+                              <Receipt className="w-3 h-3 text-gray-600" />
                             </div>
-                            <span className="text-sm font-medium text-gray-900">{txn.memo}</span>
+                            <span className="text-sm font-medium text-gray-900 truncate max-w-xs" title={description}>
+                              {description || 'No description'}
+                            </span>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-500">{txn.fund_name}</td>
-                        <td className="px-4 py-3 text-sm text-gray-500">{txn.account_name}</td>
-                        <td className={cn(
-                          'px-4 py-3 text-sm font-medium text-right',
-                          txn.type === 'credit' ? 'text-green-600' : 'text-red-600'
-                        )}>
-                          {txn.type === 'credit' ? '+' : '-'}{formatCurrency(txn.amount)}
+                        <td className="px-4 py-3 text-sm text-gray-500 truncate max-w-[150px]" title={contactName}>
+                          {contactName}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={cn(
+                            'inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full',
+                            txn.is_reconciled ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                          )}>
+                            {txn.is_reconciled ? 'Reconciled' : 'Pending'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm font-medium text-right text-gray-900">
+                          {formatCurrency(txn.amount)}
                         </td>
                       </tr>
-                      {expandedAplosRows.has(txn.id) && (
-                        <tr key={`${txn.id}-details`} className="bg-gray-50">
+                      {expandedAplosRows.has(String(txn.id)) && (
+                        <tr className="bg-gray-50">
                           <td colSpan={6} className="px-4 py-4">
                             <div className="ml-6 grid grid-cols-4 gap-6">
                               <div>
@@ -747,31 +786,33 @@ export default function FinancialPage() {
                                 </div>
                               </div>
                               <div>
-                                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Category</p>
+                                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Contact</p>
                                 <div className="flex items-center gap-2">
-                                  <Tag className="w-4 h-4 text-gray-400" />
-                                  <p className="text-sm font-medium text-gray-900">{txn.account_name}</p>
+                                  <User className="w-4 h-4 text-gray-400" />
+                                  <p className="text-sm font-medium text-gray-900">{contactName}</p>
                                 </div>
                               </div>
                               <div>
-                                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Type</p>
+                                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Status</p>
                                 <span className={cn(
                                   'inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full',
-                                  txn.type === 'credit' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                  txn.is_reconciled ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
                                 )}>
-                                  {txn.type === 'credit' ? 'Income' : 'Expense'}
+                                  {txn.is_reconciled ? 'Reconciled' : 'Pending'}
                                 </span>
                               </div>
-                              <div className="col-span-4">
-                                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Description</p>
-                                <p className="text-sm text-gray-700">{txn.memo}</p>
-                              </div>
+                              {txn.memo && (
+                                <div className="col-span-4">
+                                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Memo</p>
+                                  <p className="text-sm text-gray-700">{txn.memo}</p>
+                                </div>
+                              )}
                             </div>
                           </td>
                         </tr>
                       )}
-                    </>
-                  ))}
+                    </React.Fragment>
+                  )})}
                 </tbody>
               </table>
             </div>

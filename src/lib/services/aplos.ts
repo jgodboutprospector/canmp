@@ -22,26 +22,38 @@ import * as crypto from 'crypto';
 // ============================================
 
 export interface AplosTransaction {
-  id: string;
+  id: string | number;
   date: string;
   amount: number;
   memo: string;
+  contact?: {
+    id: number;
+    companyname?: string;
+    firstname?: string;
+    lastname?: string;
+    type: string;
+  };
   contact_id?: string;
   contact_name?: string;
-  fund_id: string;
-  fund_name: string;
-  account_number: string;
-  account_name: string;
-  type: 'debit' | 'credit';
+  fund_id?: string;
+  fund_name?: string;
+  account_number?: string;
+  account_name?: string;
+  type?: 'debit' | 'credit';
   category?: string;
+  is_reconciled?: boolean;
+  created?: string;
+  modified?: string;
   created_at?: string;
   updated_at?: string;
 }
 
 export interface AplosFund {
-  id: string;
+  id: string | number;
   name: string;
-  balance: number;
+  balance?: number;  // Balance may not be provided directly by API
+  balance_account_name?: string;
+  balance_account_number?: number;
   is_default?: boolean;
   status?: 'active' | 'inactive';
 }
@@ -364,19 +376,17 @@ class AplosClient {
     ]);
 
     // Calculate totals from transactions
+    // Note: Real Aplos transactions may not have type/category/account_name fields
+    // For now, sum all transaction amounts
     const totalIncome = transactions
-      .filter(t => t.type === 'credit' && ['revenue', 'income'].some(cat =>
-        t.category?.toLowerCase().includes(cat) || t.account_name.toLowerCase().includes(cat)
-      ))
+      .filter(t => t.type === 'credit' || (!t.type && t.amount > 0))
       .reduce((sum, t) => sum + t.amount, 0);
 
     const totalExpenses = transactions
-      .filter(t => t.type === 'debit' && ['expense'].some(cat =>
-        t.category?.toLowerCase().includes(cat) || t.account_name.toLowerCase().includes(cat)
-      ))
+      .filter(t => t.type === 'debit' || (!t.type && t.amount > 0))
       .reduce((sum, t) => sum + t.amount, 0);
 
-    const cashBalance = funds.reduce((sum, f) => sum + f.balance, 0);
+    const cashBalance = funds.reduce((sum, f) => sum + (f.balance || 0), 0);
 
     return {
       totalIncome,

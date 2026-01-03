@@ -4,20 +4,30 @@ import { useState, useEffect, useCallback } from 'react';
 
 // Aplos Types
 export interface AplosFund {
-  id: string;
+  id: string | number;
   name: string;
-  balance: number;
+  balance?: number;  // Balance may not be provided directly by API
+  balance_account_name?: string;
+  balance_account_number?: number;
   is_default?: boolean;
 }
 
 export interface AplosTransaction {
-  id: string;
+  id: string | number;
   date: string;
   amount: number;
   memo: string;
-  fund_name: string;
-  account_name: string;
-  type: 'credit' | 'debit';
+  contact?: {
+    id: number;
+    companyname?: string;
+    firstname?: string;
+    lastname?: string;
+    type: string;
+  };
+  fund_name?: string;
+  account_name?: string;
+  type?: 'credit' | 'debit';
+  is_reconciled?: boolean;
 }
 
 export interface AplosIncomeStatementLine {
