@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
+import { aplosClient } from '@/lib/services/aplos';
 
-// Demo data - will be replaced with real API calls when credentials are configured
+// Demo data - fallback when API is not configured or fails
 const demoFunds = [
   { id: '1', name: 'General Fund', balance: 125000, is_default: true },
   { id: '2', name: 'Housing Fund', balance: 45000, is_default: false },
@@ -49,24 +50,114 @@ const demoYoYData = [
   { month: 'Dec', currentYear: 85000, previousYear: 72000 },
 ];
 
+// Helper to check if Aplos is configured
+function isAplosConfigured(): boolean {
+  return !!(process.env.APLOS_CLIENT_ID && process.env.APLOS_PRIVATE_KEY);
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const dataType = searchParams.get('type') || 'funds';
   const fundId = searchParams.get('fund_id');
 
-  // Check if Aplos credentials are configured
-  const hasAplosCredentials = process.env.APLOS_CLIENT_ID && process.env.APLOS_PRIVATE_KEY;
-
-  // TODO: When Aplos API is properly configured, fetch real data here
-  // For now, return demo data
+  const hasAplosCredentials = isAplosConfigured();
 
   try {
+    // Try to fetch from real API if configured
+    if (hasAplosCredentials) {
+      try {
+        switch (dataType) {
+          case 'funds': {
+            const funds = await aplosClient.getFunds();
+            return NextResponse.json({
+              success: true,
+              data: funds,
+              isDemo: false,
+            });
+          }
+
+          case 'transactions': {
+            const params: { fund_id?: string } = {};
+            if (fundId && fundId !== 'all') {
+              params.fund_id = fundId;
+            }
+            const response = await aplosClient.getTransactions(params);
+            return NextResponse.json({
+              success: true,
+              data: response.data,
+              isDemo: false,
+            });
+          }
+
+          case 'income-statement': {
+            const incomeStatement = await aplosClient.getIncomeStatement({
+              fund_id: fundId && fundId !== 'all' ? fundId : undefined,
+            });
+            return NextResponse.json({
+              success: true,
+              data: incomeStatement,
+              isDemo: false,
+            });
+          }
+
+          case 'trial-balance': {
+            const trialBalance = await aplosClient.getTrialBalance({
+              fund_id: fundId && fundId !== 'all' ? fundId : undefined,
+            });
+            return NextResponse.json({
+              success: true,
+              data: trialBalance,
+              isDemo: false,
+            });
+          }
+
+          case 'yoy': {
+            const yoyData = await aplosClient.getYearOverYearComparison({
+              fund_id: fundId && fundId !== 'all' ? fundId : undefined,
+            });
+            return NextResponse.json({
+              success: true,
+              data: yoyData,
+              isDemo: false,
+            });
+          }
+
+          case 'dashboard': {
+            const dashboardData = await aplosClient.getDashboardSummary();
+            return NextResponse.json({
+              success: true,
+              data: {
+                funds: dashboardData.funds,
+                transactions: dashboardData.recentTransactions,
+                incomeStatement: [], // Would need to fetch separately
+                totalIncome: dashboardData.totalIncome,
+                totalExpenses: dashboardData.totalExpenses,
+                netIncome: dashboardData.netIncome,
+                cashBalance: dashboardData.cashBalance,
+              },
+              isDemo: false,
+            });
+          }
+
+          default:
+            return NextResponse.json(
+              { success: false, error: 'Invalid data type' },
+              { status: 400 }
+            );
+        }
+      } catch (apiError) {
+        console.error('Aplos API call failed, falling back to demo data:', apiError);
+        // Fall through to demo data
+      }
+    }
+
+    // Return demo data if API not configured or failed
     switch (dataType) {
       case 'funds':
         return NextResponse.json({
           success: true,
           data: demoFunds,
-          isDemo: !hasAplosCredentials,
+          isDemo: true,
         });
 
       case 'transactions':
@@ -80,28 +171,28 @@ export async function GET(request: Request) {
         return NextResponse.json({
           success: true,
           data: transactions,
-          isDemo: !hasAplosCredentials,
+          isDemo: true,
         });
 
       case 'income-statement':
         return NextResponse.json({
           success: true,
           data: demoIncomeStatement,
-          isDemo: !hasAplosCredentials,
+          isDemo: true,
         });
 
       case 'trial-balance':
         return NextResponse.json({
           success: true,
           data: demoTrialBalance,
-          isDemo: !hasAplosCredentials,
+          isDemo: true,
         });
 
       case 'yoy':
         return NextResponse.json({
           success: true,
           data: demoYoYData,
-          isDemo: !hasAplosCredentials,
+          isDemo: true,
         });
 
       case 'dashboard':
@@ -112,7 +203,7 @@ export async function GET(request: Request) {
             transactions: demoTransactions,
             incomeStatement: demoIncomeStatement,
           },
-          isDemo: !hasAplosCredentials,
+          isDemo: true,
         });
 
       default:

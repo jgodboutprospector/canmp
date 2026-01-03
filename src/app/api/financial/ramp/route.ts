@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
+import { rampClient, RampCard, RampTransaction, RampReimbursement } from '@/lib/services/ramp';
 
-// Demo data - will be replaced with real API calls when credentials are configured
+// Demo data - fallback when API is not configured or fails
 const demoCards = [
   { id: '1', display_name: 'Operations Card', last_four: '4521', cardholder_name: 'Katya Shevchenko', state: 'active', is_physical: true, spending_limit: 5000, current_spend: 2340 },
   { id: '2', display_name: 'Program Expenses', last_four: '7892', cardholder_name: 'Nour Iskandafi', state: 'active', is_physical: false, spending_limit: 3000, current_spend: 1850 },
@@ -21,37 +22,139 @@ const demoReimbursements = [
   { id: '3', user_name: 'Isabelle Mehrhoff', amount: 78.00, merchant: 'CVS', status: 'pending', transaction_date: '2025-12-25', category: 'Medical Supplies' },
 ];
 
+// Helper to check if Ramp is configured
+function isRampConfigured(): boolean {
+  return !!(process.env.RAMP_CLIENT_ID && process.env.RAMP_CLIENT_SECRET);
+}
+
+// Transform Ramp API card to our format
+function transformCard(card: RampCard) {
+  return {
+    id: card.id,
+    display_name: card.display_name,
+    last_four: card.last_four,
+    cardholder_name: card.cardholder_name,
+    state: card.state,
+    is_physical: card.is_physical,
+    spending_limit: card.spending_restrictions?.amount || 0,
+    current_spend: 0, // Would need separate API call to get current spend
+  };
+}
+
+// Transform Ramp API transaction to our format
+function transformTransaction(tx: RampTransaction) {
+  return {
+    id: tx.id,
+    amount: tx.amount,
+    merchant_name: tx.merchant_name,
+    category: tx.category || tx.sk_category_name || 'Uncategorized',
+    card_holder_name: tx.card_holder_name,
+    state: tx.state,
+    transaction_date: tx.transaction_date,
+    memo: tx.memo,
+  };
+}
+
+// Transform Ramp API reimbursement to our format
+function transformReimbursement(reimb: RampReimbursement) {
+  return {
+    id: reimb.id,
+    user_name: reimb.user_name,
+    amount: reimb.amount,
+    merchant: reimb.merchant,
+    status: reimb.status,
+    transaction_date: reimb.transaction_date,
+    category: reimb.category || 'Uncategorized',
+  };
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const dataType = searchParams.get('type') || 'cards';
 
-  // Check if Ramp credentials are configured
-  const hasRampCredentials = process.env.RAMP_CLIENT_ID && process.env.RAMP_CLIENT_SECRET;
-
-  // TODO: When Ramp API is properly configured, fetch real data here
-  // For now, return demo data
+  const hasRampCredentials = isRampConfigured();
 
   try {
+    // Try to fetch from real API if configured
+    if (hasRampCredentials) {
+      try {
+        switch (dataType) {
+          case 'cards': {
+            const response = await rampClient.getCards();
+            return NextResponse.json({
+              success: true,
+              data: response.data.map(transformCard),
+              isDemo: false,
+            });
+          }
+
+          case 'transactions': {
+            const response = await rampClient.getTransactions();
+            return NextResponse.json({
+              success: true,
+              data: response.data.map(transformTransaction),
+              isDemo: false,
+            });
+          }
+
+          case 'reimbursements': {
+            const response = await rampClient.getReimbursements();
+            return NextResponse.json({
+              success: true,
+              data: response.data.map(transformReimbursement),
+              isDemo: false,
+            });
+          }
+
+          case 'dashboard': {
+            const dashboardData = await rampClient.getDashboardSummary();
+            return NextResponse.json({
+              success: true,
+              data: {
+                cards: dashboardData.cards.map(transformCard),
+                transactions: dashboardData.recentTransactions.map(transformTransaction),
+                reimbursements: dashboardData.reimbursements.map(transformReimbursement),
+                totalSpend: dashboardData.totalSpend,
+                activeCards: dashboardData.activeCards,
+                pendingReimbursements: dashboardData.pendingReimbursements,
+              },
+              isDemo: false,
+            });
+          }
+
+          default:
+            return NextResponse.json(
+              { success: false, error: 'Invalid data type' },
+              { status: 400 }
+            );
+        }
+      } catch (apiError) {
+        console.error('Ramp API call failed, falling back to demo data:', apiError);
+        // Fall through to demo data
+      }
+    }
+
+    // Return demo data if API not configured or failed
     switch (dataType) {
       case 'cards':
         return NextResponse.json({
           success: true,
           data: demoCards,
-          isDemo: !hasRampCredentials,
+          isDemo: true,
         });
 
       case 'transactions':
         return NextResponse.json({
           success: true,
           data: demoTransactions,
-          isDemo: !hasRampCredentials,
+          isDemo: true,
         });
 
       case 'reimbursements':
         return NextResponse.json({
           success: true,
           data: demoReimbursements,
-          isDemo: !hasRampCredentials,
+          isDemo: true,
         });
 
       case 'dashboard':
@@ -62,7 +165,7 @@ export async function GET(request: Request) {
             transactions: demoTransactions,
             reimbursements: demoReimbursements,
           },
-          isDemo: !hasRampCredentials,
+          isDemo: true,
         });
 
       default:
@@ -84,8 +187,7 @@ export async function POST(request: Request) {
   const { searchParams } = new URL(request.url);
   const action = searchParams.get('action');
 
-  // Check if Ramp credentials are configured
-  const hasRampCredentials = process.env.RAMP_CLIENT_ID && process.env.RAMP_CLIENT_SECRET;
+  const hasRampCredentials = isRampConfigured();
 
   if (!hasRampCredentials) {
     return NextResponse.json({
@@ -99,19 +201,53 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     switch (action) {
-      case 'approve-reimbursement':
-        // TODO: Call Ramp API to approve reimbursement
+      case 'approve-reimbursement': {
+        const result = await rampClient.approveReimbursement(body.id);
         return NextResponse.json({
           success: true,
           message: `Reimbursement ${body.id} approved`,
+          data: transformReimbursement(result),
         });
+      }
 
-      case 'reject-reimbursement':
-        // TODO: Call Ramp API to reject reimbursement
+      case 'reject-reimbursement': {
+        const result = await rampClient.rejectReimbursement(body.id, body.reason);
         return NextResponse.json({
           success: true,
           message: `Reimbursement ${body.id} rejected`,
+          data: transformReimbursement(result),
         });
+      }
+
+      case 'suspend-card': {
+        const result = await rampClient.suspendCard(body.id);
+        return NextResponse.json({
+          success: true,
+          message: `Card ${body.id} suspended`,
+          data: transformCard(result),
+        });
+      }
+
+      case 'activate-card': {
+        const result = await rampClient.activateCard(body.id);
+        return NextResponse.json({
+          success: true,
+          message: `Card ${body.id} activated`,
+          data: transformCard(result),
+        });
+      }
+
+      case 'update-spending-limit': {
+        const result = await rampClient.updateCardSpendingLimit(body.id, {
+          amount: body.amount,
+          interval: body.interval || 'monthly',
+        });
+        return NextResponse.json({
+          success: true,
+          message: `Card ${body.id} spending limit updated`,
+          data: transformCard(result),
+        });
+      }
 
       default:
         return NextResponse.json(

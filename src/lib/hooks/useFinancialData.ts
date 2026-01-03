@@ -73,6 +73,57 @@ export interface RampReimbursement {
   category: string;
 }
 
+// Neon CRM Types
+export interface NeonDonor {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  totalDonations: number;
+  donationCount: number;
+  lastDonationDate?: string;
+  membershipStatus?: 'active' | 'expired' | 'none';
+  createdAt: string;
+}
+
+export interface NeonDonation {
+  id: string;
+  donorId: string;
+  donorName: string;
+  amount: number;
+  date: string;
+  campaign?: string;
+  fund?: string;
+  paymentMethod: 'credit_card' | 'check' | 'cash' | 'ach' | 'other';
+  status: 'completed' | 'pending' | 'refunded' | 'failed';
+  recurring: boolean;
+  note?: string;
+}
+
+export interface NeonCampaign {
+  id: string;
+  name: string;
+  goal: number;
+  raised: number;
+  donorCount: number;
+  startDate: string;
+  endDate?: string;
+  status: 'active' | 'completed' | 'draft';
+}
+
+export interface NeonMembership {
+  id: string;
+  donorId: string;
+  donorName: string;
+  level: string;
+  startDate: string;
+  endDate: string;
+  status: 'active' | 'expired' | 'pending';
+  amount: number;
+  autoRenew: boolean;
+}
+
 // Hook for Aplos data
 export function useAplosData(dataType: string, fundId?: string) {
   const [data, setData] = useState<any>(null);
@@ -209,4 +260,40 @@ export function useFinancialDashboard() {
     isDemo,
     refresh: fetchData,
   };
+}
+
+// Hook for Neon CRM data
+export function useNeonData(dataType: string) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isDemo, setIsDemo] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/financial/neon?type=${dataType}`);
+      const result = await response.json();
+
+      if (result.success) {
+        setData(result.data);
+        setIsDemo(result.isDemo);
+      } else {
+        setError(result.error || 'Failed to fetch data');
+      }
+    } catch (err) {
+      setError('Failed to connect to API');
+      console.error('Neon API error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [dataType]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  return { data, loading, error, isDemo, refresh: fetchData };
 }
