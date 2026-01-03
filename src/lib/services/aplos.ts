@@ -123,16 +123,31 @@ class AplosClient {
       // Decode base64 encrypted token
       const encryptedBuffer = Buffer.from(encryptedToken, 'base64');
 
-      // Decrypt using RSA with PKCS1 v1.5 padding (what Aplos uses)
-      const decrypted = crypto.privateDecrypt(
-        {
-          key: this.privateKey,
-          padding: crypto.constants.RSA_PKCS1_PADDING,
-        },
-        encryptedBuffer
-      );
+      // Try OAEP padding first (more secure, used by some APIs)
+      // Then fall back to PKCS1 if needed
+      const paddingOptions = [
+        { padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, oaepHash: 'sha256' },
+        { padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, oaepHash: 'sha1' },
+        { padding: crypto.constants.RSA_PKCS1_PADDING }, // Legacy - may fail on Node.js 22+
+      ];
 
-      return decrypted.toString('utf8');
+      for (const options of paddingOptions) {
+        try {
+          const decrypted = crypto.privateDecrypt(
+            {
+              key: this.privateKey,
+              ...options,
+            },
+            encryptedBuffer
+          );
+          return decrypted.toString('utf8');
+        } catch {
+          // Try next padding option
+          continue;
+        }
+      }
+
+      throw new Error('All decryption methods failed');
     } catch (error) {
       console.error('Token decryption failed:', error);
       throw new Error(`Failed to decrypt Aplos token: ${error instanceof Error ? error.message : 'Unknown error'}`);

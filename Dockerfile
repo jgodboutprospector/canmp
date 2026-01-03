@@ -49,4 +49,6 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "server.js"]
+# Enable legacy RSA PKCS1 padding for Aplos API token decryption
+# This is required because Aplos uses PKCS1 v1.5 padding which was disabled in Node.js for CVE-2023-46809
+CMD ["node", "--security-revert=CVE-2023-46809", "server.js"]
