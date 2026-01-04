@@ -226,37 +226,20 @@ class NeonClient {
 
   /**
    * List accounts using the listAccounts endpoint
-   * Uses output fields to specify which fields to return
+   * Note: We fetch without specifying output fields to get default fields,
+   * as specific field names vary by Neon installation.
    */
   async getDonors(options?: { page?: number; pageSize?: number }): Promise<NeonApiResponse<NeonDonor[]>> {
     const sessionId = await this.login();
     const page = options?.page || 1;
     const pageSize = options?.pageSize || 50;
 
-    // Build the request URL with output fields
-    // The listAccounts endpoint requires specific output fields to be defined
+    // Build simple request without output fields - Neon will return default fields
     const params = new URLSearchParams();
     params.append('userSessionId', sessionId);
     params.append('responseType', 'json');
     params.append('page.currentPage', String(page - 1)); // Neon uses 0-based pages
     params.append('page.pageSize', String(pageSize));
-    params.append('page.sortColumn', 'Account ID');
-    params.append('page.sortDirection', 'DESC');
-
-    // Define output fields - these are the fields we want returned
-    const outputFields = [
-      'Account ID',
-      'First Name',
-      'Last Name',
-      'Email 1',
-      'Phone 1',
-      'Account Created Date/Time',
-    ];
-
-    outputFields.forEach(field => {
-      params.append('outputfields.idnamepair.id', '');
-      params.append('outputfields.idnamepair.name', field);
-    });
 
     try {
       const response = await fetch(`${this.baseUrl}/account/listAccounts?${params.toString()}`, {
@@ -274,11 +257,11 @@ class NeonClient {
 
       const data = await response.json();
 
-      // Log the response for debugging
-      console.log('Neon listAccounts response:', JSON.stringify(data).substring(0, 500));
+      // Log the response for debugging (first 1000 chars to see field structure)
+      console.log('Neon listAccounts response:', JSON.stringify(data).substring(0, 1000));
 
       if (data.listAccountsResponse?.operationResult !== 'SUCCESS') {
-        console.error('Neon listAccounts failed:', data.listAccountsResponse?.responseMessage || JSON.stringify(data));
+        console.error('Neon listAccounts failed:', JSON.stringify(data.listAccountsResponse));
         return { data: [], pagination: { currentPage: 1, totalPages: 1, totalResults: 0 } };
       }
 
@@ -286,21 +269,31 @@ class NeonClient {
       const pageInfo = data.listAccountsResponse?.page || {};
 
       // Transform the accounts to NeonDonor format
+      // Field names returned depend on Neon installation configuration
       const donors: NeonDonor[] = accounts.map((account: any) => {
         const fields = account.nameValuePair || [];
-        const getValue = (name: string) => fields.find((f: any) => f.name === name)?.value || '';
+        // Helper to get field value by partial name match (case-insensitive)
+        const getValue = (patterns: string[]) => {
+          for (const pattern of patterns) {
+            const found = fields.find((f: any) =>
+              f.name?.toLowerCase().includes(pattern.toLowerCase())
+            );
+            if (found?.value) return found.value;
+          }
+          return '';
+        };
 
         return {
-          id: getValue('Account ID'),
-          firstName: getValue('First Name'),
-          lastName: getValue('Last Name'),
-          email: getValue('Email 1'),
-          phone: getValue('Phone 1') || undefined,
-          totalDonations: 0, // Would need separate donation query
+          id: getValue(['Account ID', 'accountId', 'ID']),
+          firstName: getValue(['First Name', 'firstName', 'First']),
+          lastName: getValue(['Last Name', 'lastName', 'Last']),
+          email: getValue(['Email', 'email1', 'Email 1']),
+          phone: getValue(['Phone', 'phone1', 'Phone 1']) || undefined,
+          totalDonations: 0,
           donationCount: 0,
           lastDonationDate: undefined,
           membershipStatus: 'none' as const,
-          createdAt: getValue('Account Created Date/Time') || new Date().toISOString(),
+          createdAt: getValue(['Created', 'createDate', 'Account Created']) || new Date().toISOString(),
         };
       });
 
@@ -335,31 +328,12 @@ class NeonClient {
     const page = options?.page || 1;
     const pageSize = options?.pageSize || 50;
 
+    // Build simple request without output fields - Neon will return default fields
     const params = new URLSearchParams();
     params.append('userSessionId', sessionId);
     params.append('responseType', 'json');
     params.append('page.currentPage', String(page - 1));
     params.append('page.pageSize', String(pageSize));
-    params.append('page.sortColumn', 'Donation Date');
-    params.append('page.sortDirection', 'DESC');
-
-    // Define output fields for donations
-    const outputFields = [
-      'Donation ID',
-      'Account ID',
-      'First Name',
-      'Last Name',
-      'Donation Amount',
-      'Donation Date',
-      'Campaign Name',
-      'Fund Name',
-      'Donation Status',
-    ];
-
-    outputFields.forEach(field => {
-      params.append('outputfields.idnamepair.id', '');
-      params.append('outputfields.idnamepair.name', field);
-    });
 
     try {
       const response = await fetch(`${this.baseUrl}/donation/listDonations?${params.toString()}`, {
@@ -377,8 +351,11 @@ class NeonClient {
 
       const data = await response.json();
 
+      // Log the response for debugging
+      console.log('Neon listDonations response:', JSON.stringify(data).substring(0, 1000));
+
       if (data.listDonationsResponse?.operationResult !== 'SUCCESS') {
-        console.error('Neon listDonations failed:', data.listDonationsResponse?.responseMessage);
+        console.error('Neon listDonations failed:', JSON.stringify(data.listDonationsResponse));
         return { data: [], pagination: { currentPage: 1, totalPages: 1, totalResults: 0 } };
       }
 
@@ -387,18 +364,27 @@ class NeonClient {
 
       const donationList: NeonDonation[] = donations.map((donation: any) => {
         const fields = donation.nameValuePair || [];
-        const getValue = (name: string) => fields.find((f: any) => f.name === name)?.value || '';
+        // Helper to get field value by partial name match (case-insensitive)
+        const getValue = (patterns: string[]) => {
+          for (const pattern of patterns) {
+            const found = fields.find((f: any) =>
+              f.name?.toLowerCase().includes(pattern.toLowerCase())
+            );
+            if (found?.value) return found.value;
+          }
+          return '';
+        };
 
         return {
-          id: getValue('Donation ID'),
-          donorId: getValue('Account ID'),
-          donorName: `${getValue('First Name')} ${getValue('Last Name')}`.trim(),
-          amount: parseFloat(getValue('Donation Amount')) || 0,
-          date: getValue('Donation Date'),
-          campaign: getValue('Campaign Name') || undefined,
-          fund: getValue('Fund Name') || undefined,
+          id: getValue(['Donation ID', 'donationId', 'ID']),
+          donorId: getValue(['Account ID', 'accountId']),
+          donorName: `${getValue(['First Name', 'firstName'])} ${getValue(['Last Name', 'lastName'])}`.trim(),
+          amount: parseFloat(getValue(['Amount', 'Donation Amount'])) || 0,
+          date: getValue(['Date', 'Donation Date']),
+          campaign: getValue(['Campaign', 'Campaign Name']) || undefined,
+          fund: getValue(['Fund', 'Fund Name']) || undefined,
           paymentMethod: 'other' as const,
-          status: getValue('Donation Status')?.toLowerCase() === 'succeeded' ? 'completed' : 'pending' as const,
+          status: getValue(['Status', 'Donation Status'])?.toLowerCase() === 'succeeded' ? 'completed' : 'pending' as const,
           recurring: false,
         };
       });

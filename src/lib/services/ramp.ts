@@ -163,7 +163,7 @@ class RampClient {
         'Authorization': `Basic ${credentials}`,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: 'grant_type=client_credentials&scope=transactions:read cards:read users:read reimbursements:read',
+      body: 'grant_type=client_credentials&scope=transactions:read users:read reimbursements:read',
     });
 
     if (!response.ok) {
