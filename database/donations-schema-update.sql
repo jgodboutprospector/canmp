@@ -5,6 +5,88 @@
 -- ============================================
 
 -- ============================================
+-- 0. CREATE BASE TYPES IF THEY DON'T EXIST
+-- ============================================
+
+-- Donation item categories
+DO $$ BEGIN
+    CREATE TYPE donation_category AS ENUM (
+        'furniture', 'kitchen', 'bedding', 'bathroom',
+        'electronics', 'clothing', 'baby', 'household', 'other'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+-- Donation item status
+DO $$ BEGIN
+    CREATE TYPE donation_status AS ENUM ('available', 'reserved', 'claimed', 'pending_pickup');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+-- ============================================
+-- 0.5. CREATE DONATION_ITEMS TABLE IF NOT EXISTS
+-- ============================================
+
+-- Donation items
+CREATE TABLE IF NOT EXISTS donation_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(200) NOT NULL,
+    description TEXT,
+    category donation_category NOT NULL,
+    condition VARCHAR(50), -- new, like_new, good, fair
+    quantity INTEGER DEFAULT 1,
+    status donation_status DEFAULT 'available',
+
+    -- Storage location
+    location VARCHAR(200),
+    bin_number VARCHAR(50),
+
+    -- Donor info
+    donor_name VARCHAR(200),
+    donor_phone VARCHAR(20),
+    donor_email VARCHAR(255),
+    donated_date DATE DEFAULT CURRENT_DATE,
+
+    -- Claim info
+    claimed_by_household_id UUID REFERENCES households(id),
+    claimed_date DATE,
+    claimed_by_user_id UUID REFERENCES users(id),
+
+    -- Image (legacy single image field)
+    image_path TEXT,
+
+    notes TEXT,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_donation_items_category ON donation_items(category);
+CREATE INDEX IF NOT EXISTS idx_donation_items_status ON donation_items(status);
+
+-- Enable RLS
+ALTER TABLE donation_items ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies if they exist (to avoid conflicts)
+DROP POLICY IF EXISTS "Authenticated users can view donations" ON donation_items;
+DROP POLICY IF EXISTS "Staff can manage donations" ON donation_items;
+
+CREATE POLICY "Authenticated users can view donations" ON donation_items
+    FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "Staff can manage donations" ON donation_items
+    FOR ALL TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM users
+            WHERE users.auth_user_id = auth.uid()
+            AND users.role IN ('admin', 'coordinator', 'volunteer')
+        )
+    );
+
+-- ============================================
 -- 1. UPDATE DONATION CATEGORY ENUM
 -- ============================================
 
@@ -45,6 +127,10 @@ CREATE INDEX IF NOT EXISTS idx_donation_photos_primary ON donation_photos(donati
 
 -- Enable RLS
 ALTER TABLE donation_photos ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies if they exist (to avoid conflicts)
+DROP POLICY IF EXISTS "Authenticated users can view donation photos" ON donation_photos;
+DROP POLICY IF EXISTS "Staff can manage donation photos" ON donation_photos;
 
 CREATE POLICY "Authenticated users can view donation photos" ON donation_photos
     FOR SELECT TO authenticated USING (true);
@@ -105,6 +191,10 @@ CREATE INDEX IF NOT EXISTS idx_donation_claims_household ON donation_claims(hous
 
 -- Enable RLS
 ALTER TABLE donation_claims ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies if they exist (to avoid conflicts)
+DROP POLICY IF EXISTS "Authenticated users can view donation claims" ON donation_claims;
+DROP POLICY IF EXISTS "Staff can manage donation claims" ON donation_claims;
 
 CREATE POLICY "Authenticated users can view donation claims" ON donation_claims
     FOR SELECT TO authenticated USING (true);

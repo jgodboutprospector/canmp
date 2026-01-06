@@ -31,6 +31,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
+  // Define loadProfile before useEffect to avoid hoisting issues
+  const loadProfile = async (userId: string) => {
+    const userProfile = await getUserProfile(userId);
+    setProfile(userProfile);
+    setLoading(false);
+  };
+
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -64,13 +71,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       subscription.unsubscribe();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  async function loadProfile(userId: string) {
-    const userProfile = await getUserProfile(userId);
-    setProfile(userProfile);
-    setLoading(false);
-  }
 
   async function signIn(email: string, password: string) {
     const { data, error } = await supabase.auth.signInWithPassword({
