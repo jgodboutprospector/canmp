@@ -22,6 +22,27 @@ export type RelationshipType = 'head_of_household' | 'spouse' | 'child' | 'paren
 export type Gender = 'male' | 'female' | 'other' | 'prefer_not_to_say';
 export type CaseNoteVisibility = 'all_staff' | 'coordinators_only' | 'private';
 
+// Donation types
+export type DonationCategory =
+  | 'furniture'
+  | 'kitchen'
+  | 'kitchenware'
+  | 'bedding'
+  | 'bathroom'
+  | 'electronics'
+  | 'clothing'
+  | 'baby'
+  | 'household'
+  | 'linens'
+  | 'rugs'
+  | 'accessories'
+  | 'toys'
+  | 'other';
+
+export type DonationStatus = 'available' | 'reserved' | 'claimed' | 'pending_pickup';
+
+export type DonationCondition = 'new' | 'like_new' | 'gently_used' | 'used' | 'needs_repair';
+
 // Database interface for Supabase client
 export interface Database {
   public: {
@@ -368,6 +389,62 @@ export interface Volunteer {
   updated_at: string;
 }
 
+export interface DonationItem {
+  id: string;
+  name: string;
+  description: string | null;
+  category: DonationCategory;
+  condition: string | null;
+  quantity: number;
+  status: DonationStatus;
+  location: string | null;
+  bin_number: string | null;
+  donor_name: string | null;
+  donor_phone: string | null;
+  donor_email: string | null;
+  donated_date: string | null;
+  claimed_by_household_id: string | null;
+  claimed_date: string | null;
+  claimed_by_user_id: string | null;
+  image_path: string | null;
+  claim_count: number;
+  most_recent_claim_date: string | null;
+  shop_display_summary: string | null;
+  suggested_next_action: string | null;
+  airtable_id: string | null;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DonationPhoto {
+  id: string;
+  donation_item_id: string;
+  s3_url: string;
+  s3_key: string;
+  original_filename: string | null;
+  file_size: number | null;
+  mime_type: string | null;
+  sort_order: number;
+  is_primary: boolean;
+  created_at: string;
+}
+
+export interface DonationClaim {
+  id: string;
+  donation_item_id: string;
+  household_id: string | null;
+  claimed_by_name: string | null;
+  claim_status: string;
+  claim_date: string;
+  approved_date: string | null;
+  approved_by_id: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // ============================================
 // Extended Types (with relations)
 // ============================================
@@ -397,4 +474,10 @@ export interface HouseholdWithRelations extends Household {
 export interface BeneficiaryWithRelations extends Beneficiary {
   household?: Household;
   languages?: { language: string; proficiency: LanguageProficiency; is_primary: boolean }[];
+}
+
+export interface DonationItemWithRelations extends DonationItem {
+  photos?: DonationPhoto[];
+  claims?: DonationClaim[];
+  claimed_by_household?: Household;
 }

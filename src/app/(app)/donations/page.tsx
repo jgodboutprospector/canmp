@@ -1,39 +1,30 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
-  Package,
   Search,
   Plus,
   Loader2,
   Grid,
   List,
-  Filter,
-  ImageIcon,
-  User,
-  Calendar,
   MapPin,
-  Check,
   Edit2,
   Trash2,
+  Upload,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { format } from 'date-fns';
 import { Modal } from '@/components/ui/Modal';
-
-type DonationCategory =
-  | 'furniture'
-  | 'kitchen'
-  | 'bedding'
-  | 'bathroom'
-  | 'electronics'
-  | 'clothing'
-  | 'baby'
-  | 'household'
-  | 'other';
-
-type DonationStatus = 'available' | 'reserved' | 'claimed' | 'pending_pickup';
+import type {
+  DonationCategory,
+  DonationStatus,
+  DonationPhoto,
+} from '@/types/database';
 
 interface DonationItem {
   id: string;
@@ -48,6 +39,7 @@ interface DonationItem {
   donor_name: string | null;
   donated_date: string | null;
   image_path: string | null;
+  photos?: DonationPhoto[];
   claimed_by_household: {
     id: string;
     name: string;
@@ -56,13 +48,18 @@ interface DonationItem {
 
 const CATEGORIES: { id: DonationCategory; label: string; icon: string }[] = [
   { id: 'furniture', label: 'Furniture', icon: '🪑' },
+  { id: 'kitchenware', label: 'Kitchenware', icon: '🍳' },
   { id: 'kitchen', label: 'Kitchen', icon: '🍳' },
   { id: 'bedding', label: 'Bedding', icon: '🛏️' },
+  { id: 'linens', label: 'Linens', icon: '🧺' },
   { id: 'bathroom', label: 'Bathroom', icon: '🛁' },
   { id: 'electronics', label: 'Electronics', icon: '📺' },
   { id: 'clothing', label: 'Clothing', icon: '👕' },
   { id: 'baby', label: 'Baby Items', icon: '👶' },
+  { id: 'toys', label: 'Toys', icon: '🧸' },
   { id: 'household', label: 'Household', icon: '🏠' },
+  { id: 'rugs', label: 'Rugs', icon: '🟫' },
+  { id: 'accessories', label: 'Accessories', icon: '👜' },
   { id: 'other', label: 'Other', icon: '📦' },
 ];
 
@@ -72,6 +69,14 @@ const STATUS_COLORS: Record<DonationStatus, string> = {
   claimed: 'bg-blue-100 text-blue-700',
   pending_pickup: 'bg-purple-100 text-purple-700',
 };
+
+const CONDITION_OPTIONS = [
+  { value: 'new', label: 'New' },
+  { value: 'like_new', label: 'Like New' },
+  { value: 'gently_used', label: 'Gently Used' },
+  { value: 'used', label: 'Used' },
+  { value: 'needs_repair', label: 'Needs Repair' },
+];
 
 export default function DonationsPage() {
   const [items, setItems] = useState<DonationItem[]>([]);
@@ -83,13 +88,18 @@ export default function DonationsPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<DonationItem | null>(null);
   const [editingItem, setEditingItem] = useState<DonationItem | null>(null);
+  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+
+  // Photo upload state
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Add form state
   const [newItem, setNewItem] = useState({
     name: '',
     description: '',
     category: 'furniture' as DonationCategory,
-    condition: 'good',
+    condition: 'gently_used',
     quantity: 1,
     location: '',
     bin_number: '',
@@ -109,7 +119,8 @@ export default function DonationsPage() {
         .from('donation_items')
         .select(`
           *,
-          claimed_by_household:households(id, name)
+          claimed_by_household:households(id, name),
+          photos:donation_photos(*)
         `)
         .eq('is_active', true)
         .order('created_at', { ascending: false });
@@ -128,7 +139,7 @@ export default function DonationsPage() {
       name: '',
       description: '',
       category: 'furniture',
-      condition: 'good',
+      condition: 'gently_used',
       quantity: 1,
       location: '',
       bin_number: '',
@@ -186,7 +197,7 @@ export default function DonationsPage() {
       name: item.name,
       description: item.description || '',
       category: item.category,
-      condition: item.condition || 'good',
+      condition: item.condition || 'gently_used',
       quantity: item.quantity,
       location: item.location || '',
       bin_number: item.bin_number || '',
@@ -229,6 +240,78 @@ export default function DonationsPage() {
     }
   }
 
+  async function handlePhotoUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file || !selectedItem) return;
+
+    setUploadingPhoto(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('donation_item_id', selectedItem.id);
+      formData.append('is_primary', String(!selectedItem.photos?.length));
+
+      const response = await fetch('/api/donations/photos', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error || 'Failed to upload photo');
+      }
+
+      await fetchItems();
+      // Update selected item with new data
+      const updated = items.find((i) => i.id === selectedItem.id);
+      if (updated) setSelectedItem(updated);
+    } catch (err) {
+      console.error('Error uploading photo:', err);
+      alert(err instanceof Error ? err.message : 'Failed to upload photo');
+    } finally {
+      setUploadingPhoto(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  }
+
+  async function deletePhoto(photoId: string) {
+    if (!confirm('Delete this photo?')) return;
+
+    try {
+      const response = await fetch(`/api/donations/photos?id=${photoId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete photo');
+      }
+
+      await fetchItems();
+    } catch (err) {
+      console.error('Error deleting photo:', err);
+    }
+  }
+
+  async function setPrimaryPhoto(photoId: string) {
+    try {
+      const response = await fetch('/api/donations/photos', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: photoId, is_primary: true }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to set primary photo');
+      }
+
+      await fetchItems();
+    } catch (err) {
+      console.error('Error setting primary photo:', err);
+    }
+  }
+
   const filteredItems = items.filter((item) => {
     const matchesSearch =
       item.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -239,6 +322,15 @@ export default function DonationsPage() {
   });
 
   const availableCount = items.filter((i) => i.status === 'available').length;
+
+  // Get photos for selected item
+  const selectedItemPhotos = selectedItem?.photos?.sort((a, b) => a.sort_order - b.sort_order) || [];
+  const currentPhoto = selectedItemPhotos[currentPhotoIndex];
+
+  // Reset photo index when selected item changes
+  useEffect(() => {
+    setCurrentPhotoIndex(0);
+  }, [selectedItem?.id]);
 
   return (
     <div className="min-h-full p-6">
@@ -350,57 +442,67 @@ export default function DonationsPage() {
         </div>
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {filteredItems.map((item) => (
-            <div
-              key={item.id}
-              onClick={() => setSelectedItem(item)}
-              className="card overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
-            >
-              {/* Image placeholder */}
-              <div className="h-32 bg-gray-100 flex items-center justify-center">
-                {item.image_path ? (
-                  <img
-                    src={item.image_path}
-                    alt={item.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="text-4xl">
-                    {CATEGORIES.find((c) => c.id === item.category)?.icon || '📦'}
-                  </div>
-                )}
-              </div>
+          {filteredItems.map((item) => {
+            const primaryPhoto = item.photos?.find((p) => p.is_primary) || item.photos?.[0];
+            const displayImage = primaryPhoto?.s3_url || item.image_path;
 
-              <div className="p-3">
-                <div className="flex items-start justify-between mb-2">
-                  <h3 className="font-medium text-gray-900 text-sm line-clamp-1">
-                    {item.name}
-                  </h3>
-                  <span
-                    className={cn(
-                      'px-2 py-0.5 rounded-full text-xs font-medium capitalize',
-                      STATUS_COLORS[item.status]
-                    )}
-                  >
-                    {item.status.replace('_', ' ')}
-                  </span>
+            return (
+              <div
+                key={item.id}
+                onClick={() => setSelectedItem(item)}
+                className="card overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
+              >
+                {/* Image */}
+                <div className="h-32 bg-gray-100 flex items-center justify-center relative">
+                  {displayImage ? (
+                    <img
+                      src={displayImage}
+                      alt={item.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="text-4xl">
+                      {CATEGORIES.find((c) => c.id === item.category)?.icon || '📦'}
+                    </div>
+                  )}
+                  {item.photos && item.photos.length > 1 && (
+                    <div className="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-2 py-0.5 rounded">
+                      +{item.photos.length - 1}
+                    </div>
+                  )}
                 </div>
 
-                <p className="text-xs text-gray-500 capitalize mb-2">{item.category}</p>
-
-                {item.quantity > 1 && (
-                  <p className="text-xs text-gray-600">Qty: {item.quantity}</p>
-                )}
-
-                {item.location && (
-                  <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
-                    <MapPin className="w-3 h-3" />
-                    {item.location}
+                <div className="p-3">
+                  <div className="flex items-start justify-between mb-2">
+                    <h3 className="font-medium text-gray-900 text-sm line-clamp-1">
+                      {item.name}
+                    </h3>
+                    <span
+                      className={cn(
+                        'px-2 py-0.5 rounded-full text-xs font-medium capitalize',
+                        STATUS_COLORS[item.status]
+                      )}
+                    >
+                      {item.status.replace('_', ' ')}
+                    </span>
                   </div>
-                )}
+
+                  <p className="text-xs text-gray-500 capitalize mb-2">{item.category}</p>
+
+                  {item.quantity > 1 && (
+                    <p className="text-xs text-gray-600">Qty: {item.quantity}</p>
+                  )}
+
+                  {item.location && (
+                    <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+                      <MapPin className="w-3 h-3" />
+                      {item.location}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div className="card overflow-hidden">
@@ -444,7 +546,7 @@ export default function DonationsPage() {
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-500 capitalize">{item.category}</td>
                   <td className="px-4 py-3 text-sm text-gray-500 capitalize">
-                    {item.condition || '-'}
+                    {item.condition?.replace('_', ' ') || '-'}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-500">{item.quantity}</td>
                   <td className="px-4 py-3 text-sm text-gray-500">{item.location || '-'}</td>
@@ -523,10 +625,11 @@ export default function DonationsPage() {
                 onChange={(e) => setNewItem({ ...newItem, condition: e.target.value })}
                 className="input"
               >
-                <option value="new">New</option>
-                <option value="like_new">Like New</option>
-                <option value="good">Good</option>
-                <option value="fair">Fair</option>
+                {CONDITION_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
               </select>
             </div>
             <div>
@@ -618,6 +721,127 @@ export default function DonationsPage() {
               </button>
             </div>
 
+            {/* Photo Gallery */}
+            <div className="mb-6">
+              <div className="relative h-48 bg-gray-100 rounded-lg overflow-hidden mb-2">
+                {currentPhoto ? (
+                  <>
+                    <img
+                      src={currentPhoto.s3_url}
+                      alt={selectedItem.name}
+                      className="w-full h-full object-contain"
+                    />
+                    {selectedItemPhotos.length > 1 && (
+                      <>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCurrentPhotoIndex((prev) =>
+                              prev === 0 ? selectedItemPhotos.length - 1 : prev - 1
+                            );
+                          }}
+                          className="absolute left-2 top-1/2 -translate-y-1/2 p-1 bg-black/50 text-white rounded-full hover:bg-black/70"
+                        >
+                          <ChevronLeft className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCurrentPhotoIndex((prev) =>
+                              prev === selectedItemPhotos.length - 1 ? 0 : prev + 1
+                            );
+                          }}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 bg-black/50 text-white rounded-full hover:bg-black/70"
+                        >
+                          <ChevronRight className="w-5 h-5" />
+                        </button>
+                      </>
+                    )}
+                  </>
+                ) : selectedItem.image_path ? (
+                  <img
+                    src={selectedItem.image_path}
+                    alt={selectedItem.name}
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-6xl">
+                    {CATEGORIES.find((c) => c.id === selectedItem.category)?.icon || '📦'}
+                  </div>
+                )}
+              </div>
+
+              {/* Photo thumbnails */}
+              {selectedItemPhotos.length > 0 && (
+                <div className="flex gap-2 overflow-x-auto pb-2">
+                  {selectedItemPhotos.map((photo, index) => (
+                    <div
+                      key={photo.id}
+                      className={cn(
+                        'relative flex-shrink-0 w-16 h-16 rounded overflow-hidden cursor-pointer border-2',
+                        index === currentPhotoIndex
+                          ? 'border-canmp-green-500'
+                          : 'border-transparent'
+                      )}
+                      onClick={() => setCurrentPhotoIndex(index)}
+                    >
+                      <img
+                        src={photo.s3_url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                      {photo.is_primary && (
+                        <div className="absolute top-0 left-0 bg-canmp-green-500 text-white text-[8px] px-1">
+                          Primary
+                        </div>
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deletePhoto(photo.id);
+                        }}
+                        className="absolute top-0 right-0 p-0.5 bg-red-500 text-white rounded-bl opacity-0 hover:opacity-100 transition-opacity"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Upload button */}
+              <div className="flex gap-2 mt-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoUpload}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingPhoto}
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                >
+                  {uploadingPhoto ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4" />
+                  )}
+                  Upload Photo
+                </button>
+                {currentPhoto && !currentPhoto.is_primary && (
+                  <button
+                    onClick={() => setPrimaryPhoto(currentPhoto.id)}
+                    className="flex items-center gap-1 px-3 py-1.5 text-sm bg-canmp-green-50 text-canmp-green-700 rounded-lg hover:bg-canmp-green-100"
+                  >
+                    <ImageIcon className="w-4 h-4" />
+                    Set as Primary
+                  </button>
+                )}
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4 mb-6">
               <div className="bg-gray-50 rounded-lg p-3">
                 <p className="text-xs text-gray-500 mb-1">Category</p>
@@ -629,7 +853,7 @@ export default function DonationsPage() {
               <div className="bg-gray-50 rounded-lg p-3">
                 <p className="text-xs text-gray-500 mb-1">Condition</p>
                 <p className="font-medium text-gray-900 capitalize">
-                  {selectedItem.condition || 'Not specified'}
+                  {selectedItem.condition?.replace('_', ' ') || 'Not specified'}
                 </p>
               </div>
               <div className="bg-gray-50 rounded-lg p-3">
