@@ -140,10 +140,19 @@ export default function EnrollmentsPage() {
             <h1 className="text-xl font-semibold text-gray-900">Student Enrollments</h1>
             <p className="text-sm text-gray-500">Manage class enrollments and student registrations</p>
           </div>
-          <button onClick={() => { console.log('Opening add modal'); setShowAddModal(true); }} className="btn-primary">
+          <button
+            type="button"
+            onClick={() => {
+              console.log('Opening add modal, current state:', showAddModal);
+              setShowAddModal(true);
+            }}
+            className="btn-primary"
+          >
             <Plus className="w-4 h-4" />
             New Enrollment
           </button>
+          {/* Debug: Show modal state */}
+          <span className="ml-2 text-xs text-gray-400">Modal: {showAddModal ? 'open' : 'closed'}</span>
         </div>
 
         {/* Stats */}
