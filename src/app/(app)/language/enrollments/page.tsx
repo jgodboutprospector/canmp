@@ -70,6 +70,7 @@ export default function EnrollmentsPage() {
   async function fetchEnrollments() {
     try {
       setLoading(true);
+      console.log('Fetching enrollments...');
       const { data, error } = await (supabase as any)
         .from('class_enrollments')
         .select(`
@@ -79,6 +80,7 @@ export default function EnrollmentsPage() {
         `)
         .order('enrolled_date', { ascending: false });
 
+      console.log('Enrollments result:', { data, error });
       if (error) throw error;
       setEnrollments(data || []);
     } catch (err) {
