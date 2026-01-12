@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import {
   uploadDonationPhoto,
   deleteFromS3,
@@ -7,14 +7,10 @@ import {
   getMaxFileSize,
 } from '@/lib/services/s3';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseKey);
-
 // GET /api/donations/photos - Get photos for a donation item
 export async function GET(request: NextRequest) {
   try {
+    const supabase = getSupabaseAdmin() as any;
     const { searchParams } = new URL(request.url);
     const donationItemId = searchParams.get('donation_item_id');
 
@@ -46,6 +42,7 @@ export async function GET(request: NextRequest) {
 // POST /api/donations/photos - Upload a photo
 export async function POST(request: NextRequest) {
   try {
+    const supabase = getSupabaseAdmin() as any;
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const donationItemId = formData.get('donation_item_id') as string;
@@ -156,6 +153,7 @@ export async function POST(request: NextRequest) {
 // DELETE /api/donations/photos - Delete a photo
 export async function DELETE(request: NextRequest) {
   try {
+    const supabase = getSupabaseAdmin() as any;
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
@@ -236,6 +234,7 @@ export async function DELETE(request: NextRequest) {
 // PATCH /api/donations/photos - Update photo (set primary, reorder)
 export async function PATCH(request: NextRequest) {
   try {
+    const supabase = getSupabaseAdmin() as any;
     const body = await request.json();
     const { id, is_primary, sort_order } = body;
 

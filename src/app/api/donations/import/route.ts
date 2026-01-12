@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { migrateImageToS3 } from '@/lib/services/s3';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Map Airtable categories to our enum values
 const CATEGORY_MAP: Record<string, string> = {
@@ -67,6 +62,8 @@ interface AirtableRecord {
 // POST /api/donations/import - Import donations from Airtable data
 export async function POST(request: NextRequest) {
   try {
+    const supabase = getSupabaseAdmin();
+
     // Verify API key for security
     const apiKey = request.headers.get('x-api-key');
     if (apiKey !== process.env.SYNC_API_KEY) {
@@ -125,7 +122,7 @@ export async function POST(request: NextRequest) {
 
         // Check if already imported (by airtable_id)
         if (record.airtableId) {
-          const { data: existing } = await supabase
+          const { data: existing } = await (supabase as any)
             .from('donation_items')
             .select('id')
             .eq('airtable_id', record.airtableId)
@@ -138,7 +135,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Insert donation item
-        const { data: item, error: insertError } = await supabase
+        const { data: item, error: insertError } = await (supabase as any)
           .from('donation_items')
           .insert({
             name: record.itemName || 'Unnamed Item',
@@ -184,7 +181,7 @@ export async function POST(request: NextRequest) {
 
               if (uploadResult.success && uploadResult.url && uploadResult.key) {
                 // Save to database
-                await supabase.from('donation_photos').insert({
+                await (supabase as any).from('donation_photos').insert({
                   donation_item_id: item.id,
                   s3_url: uploadResult.url,
                   s3_key: uploadResult.key,
@@ -195,7 +192,7 @@ export async function POST(request: NextRequest) {
 
                 // Update item's image_path with primary photo
                 if (isPrimary) {
-                  await supabase
+                  await (supabase as any)
                     .from('donation_items')
                     .update({ image_path: uploadResult.url })
                     .eq('id', item.id);
