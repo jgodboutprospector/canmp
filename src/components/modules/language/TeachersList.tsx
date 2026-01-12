@@ -4,10 +4,13 @@ import { useState } from 'react';
 import { Plus, Search, GraduationCap, Mail, Phone, MapPin, Loader2 } from 'lucide-react';
 import { useTeachers } from '@/lib/hooks/useLanguageProgram';
 import { AddTeacherModal } from './AddTeacherModal';
+import { EditTeacherModal } from './EditTeacherModal';
+import type { Teacher } from '@/types/database';
 
 export default function TeachersList() {
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
   const { teachers, loading, error, refetch } = useTeachers();
 
   const filtered = teachers.filter(
@@ -92,6 +95,7 @@ export default function TeachersList() {
         {filtered.map((teacher) => (
           <div
             key={teacher.id}
+            onClick={() => setSelectedTeacher(teacher)}
             className="card p-5 hover:shadow-md transition-shadow cursor-pointer"
           >
             <div className="flex items-start gap-4">
@@ -157,6 +161,14 @@ export default function TeachersList() {
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
         onSuccess={refetch}
+      />
+
+      {/* Edit Teacher Modal */}
+      <EditTeacherModal
+        isOpen={!!selectedTeacher}
+        onClose={() => setSelectedTeacher(null)}
+        onSuccess={refetch}
+        teacher={selectedTeacher}
       />
     </div>
   );

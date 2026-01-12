@@ -19,6 +19,7 @@ import {
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import EnrollmentDetailModal from '@/components/modules/language/EnrollmentDetailModal';
+import { AddEnrollmentModal } from '@/components/modules/language/AddEnrollmentModal';
 
 const tabs = [
   { name: 'Classes', href: '/language', icon: BookOpen },
@@ -60,6 +61,7 @@ export default function EnrollmentsPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedEnrollmentId, setSelectedEnrollmentId] = useState<string | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   useEffect(() => {
     fetchEnrollments();
@@ -136,7 +138,7 @@ export default function EnrollmentsPage() {
             <h1 className="text-xl font-semibold text-gray-900">Student Enrollments</h1>
             <p className="text-sm text-gray-500">Manage class enrollments and student registrations</p>
           </div>
-          <button className="btn-primary">
+          <button onClick={() => setShowAddModal(true)} className="btn-primary">
             <Plus className="w-4 h-4" />
             New Enrollment
           </button>
@@ -293,6 +295,13 @@ export default function EnrollmentsPage() {
           onSave={fetchEnrollments}
         />
       )}
+
+      {/* Add Enrollment Modal */}
+      <AddEnrollmentModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSuccess={fetchEnrollments}
+      />
     </div>
   );
 }

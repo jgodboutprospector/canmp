@@ -4,6 +4,28 @@ import { useState } from 'react';
 import { Plus, Search, BookOpen, Clock, MapPin, Users, Loader2, ChevronRight } from 'lucide-react';
 import { useClassSections } from '@/lib/hooks/useLanguageProgram';
 import { AddClassModal } from './AddClassModal';
+import { EditClassModal } from './EditClassModal';
+import type { ClassLevel } from '@/types/database';
+
+interface ClassSection {
+  id: string;
+  name: string;
+  level: ClassLevel;
+  teacher_id: string | null;
+  site_id: string | null;
+  day_of_week: number | null;
+  schedule_days: number[] | null;
+  start_time: string | null;
+  end_time: string | null;
+  location: string | null;
+  max_students: number;
+  term_start: string | null;
+  term_end: string | null;
+  is_active: boolean;
+  teacher?: { first_name: string; last_name: string } | null;
+  site?: { name: string } | null;
+  enrollments?: { id: string }[];
+}
 
 const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const shortDayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -32,6 +54,7 @@ const levelColors: Record<string, string> = {
 export default function ClassesList() {
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [selectedClass, setSelectedClass] = useState<ClassSection | null>(null);
   const { classes, loading, error, refetch } = useClassSections();
 
   const filtered = classes.filter(
@@ -126,6 +149,7 @@ export default function ClassesList() {
         {filtered.map((classSection) => (
           <div
             key={classSection.id}
+            onClick={() => setSelectedClass(classSection as ClassSection)}
             className="card p-5 hover:shadow-md transition-shadow cursor-pointer"
           >
             <div className="flex justify-between items-start mb-4">
@@ -204,6 +228,14 @@ export default function ClassesList() {
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
         onSuccess={refetch}
+      />
+
+      {/* Edit Class Modal */}
+      <EditClassModal
+        isOpen={!!selectedClass}
+        onClose={() => setSelectedClass(null)}
+        onSuccess={refetch}
+        classSection={selectedClass}
       />
     </div>
   );
