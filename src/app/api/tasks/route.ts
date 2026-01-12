@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseKey);
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
 // GET /api/tasks - Fetch tasks with optional filters
 export async function GET(request: NextRequest) {
   try {
+    const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
     const assignee_id = searchParams.get('assignee_id');
@@ -94,6 +90,7 @@ export async function GET(request: NextRequest) {
 // POST /api/tasks - Create a new task
 export async function POST(request: NextRequest) {
   try {
+    const supabase = getSupabaseAdmin();
     const body = await request.json();
 
     const { data, error } = await supabase
@@ -127,6 +124,7 @@ export async function POST(request: NextRequest) {
 // PATCH /api/tasks - Update a task
 export async function PATCH(request: NextRequest) {
   try {
+    const supabase = getSupabaseAdmin();
     const body = await request.json();
     const { id, ...updateData } = body;
 
@@ -139,7 +137,7 @@ export async function PATCH(request: NextRequest) {
       updateData.completed_at = new Date().toISOString();
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('tasks')
       .update(updateData)
       .eq('id', id)
@@ -171,6 +169,7 @@ export async function PATCH(request: NextRequest) {
 // DELETE /api/tasks - Delete a task
 export async function DELETE(request: NextRequest) {
   try {
+    const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 

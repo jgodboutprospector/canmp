@@ -1,14 +1,10 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseKey);
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
 // GET /api/tasks/options - Fetch dropdown options for task forms
 export async function GET() {
   try {
+    const supabase = getSupabaseAdmin();
     const [usersResult, beneficiariesResult, volunteersResult, classesResult, eventsResult, propertiesResult] = await Promise.all([
       supabase.from('users').select('id, first_name, last_name, email').eq('is_active', true).order('first_name'),
       supabase.from('beneficiaries').select('id, first_name, last_name').eq('is_active', true).order('first_name'),
