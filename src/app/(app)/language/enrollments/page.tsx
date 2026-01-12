@@ -70,7 +70,6 @@ export default function EnrollmentsPage() {
   async function fetchEnrollments() {
     try {
       setLoading(true);
-      console.log('Fetching enrollments...');
       const { data, error } = await (supabase as any)
         .from('class_enrollments')
         .select(`
@@ -80,7 +79,6 @@ export default function EnrollmentsPage() {
         `)
         .order('enrolled_date', { ascending: false });
 
-      console.log('Enrollments result:', { data, error });
       if (error) throw error;
       setEnrollments(data || []);
     } catch (err) {
@@ -142,17 +140,12 @@ export default function EnrollmentsPage() {
           </div>
           <button
             type="button"
-            onClick={() => {
-              console.log('Opening add modal, current state:', showAddModal);
-              setShowAddModal(true);
-            }}
+            onClick={() => setShowAddModal(true)}
             className="btn-primary"
           >
             <Plus className="w-4 h-4" />
             New Enrollment
           </button>
-          {/* Debug: Show modal state */}
-          <span className="ml-2 text-xs text-gray-400">Modal: {showAddModal ? 'open' : 'closed'}</span>
         </div>
 
         {/* Stats */}
