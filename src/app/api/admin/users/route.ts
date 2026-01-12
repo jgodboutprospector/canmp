@@ -1,17 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-// Create admin client with service role key
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  }
-);
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
 export async function POST(request: Request) {
   try {
@@ -26,6 +14,7 @@ export async function POST(request: Request) {
     }
 
     // Create user with Supabase Admin API
+    const supabaseAdmin = getSupabaseAdmin();
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -47,7 +36,7 @@ export async function POST(request: Request) {
 
     // The trigger should auto-create the profile, but let's update it to be sure
     if (authData.user) {
-      const { error: profileError } = await supabaseAdmin
+      const { error: profileError } = await (supabaseAdmin as any)
         .from('user_profiles')
         .upsert({
           id: authData.user.id,
@@ -82,6 +71,7 @@ export async function POST(request: Request) {
 
 export async function GET() {
   try {
+    const supabaseAdmin = getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
       .from('user_profiles')
       .select('*')
@@ -111,7 +101,8 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const { error } = await supabaseAdmin
+    const supabaseAdmin = getSupabaseAdmin();
+    const { error } = await (supabaseAdmin as any)
       .from('user_profiles')
       .update(updates)
       .eq('id', userId);
@@ -142,6 +133,7 @@ export async function DELETE(request: Request) {
     }
 
     // Delete from auth
+    const supabaseAdmin = getSupabaseAdmin();
     const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
 
     if (authError) {

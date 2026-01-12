@@ -31,6 +31,7 @@ interface ClassSection {
   name: string;
   level: string;
   day_of_week: number | null;
+  schedule_days: number[] | null;
   start_time: string | null;
   teacher: {
     first_name: string;
@@ -56,7 +57,7 @@ export default function AttendancePage() {
       const { data, error } = await (supabase as any)
         .from('class_sections')
         .select(`
-          id, name, level, day_of_week, start_time,
+          id, name, level, day_of_week, schedule_days, start_time,
           teacher:teachers(first_name, last_name)
         `)
         .eq('is_active', true)
@@ -89,10 +90,20 @@ export default function AttendancePage() {
     setModalOpen(true);
   }
 
-  function getDayName(dayNum: number | null): string {
-    if (dayNum === null) return 'TBD';
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    return days[dayNum] || 'TBD';
+  function formatScheduleDays(scheduleDays: number[] | null, dayOfWeek: number | null): string {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const fullDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+    if (scheduleDays && scheduleDays.length > 0) {
+      if (scheduleDays.length === 1) {
+        return fullDays[scheduleDays[0]] || 'TBD';
+      }
+      return scheduleDays.map(d => days[d]).join('/');
+    }
+    if (dayOfWeek !== null) {
+      return fullDays[dayOfWeek] || 'TBD';
+    }
+    return 'TBD';
   }
 
   function formatTime(time: string | null): string {
@@ -219,7 +230,7 @@ export default function AttendancePage() {
                 <div className="space-y-2 text-sm text-gray-600">
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-gray-400" />
-                    <span>{getDayName(cls.day_of_week)}</span>
+                    <span>{formatScheduleDays(cls.schedule_days, cls.day_of_week)}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-gray-400" />

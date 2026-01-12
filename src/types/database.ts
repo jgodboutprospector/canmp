@@ -359,6 +359,7 @@ export interface ClassSection {
   level: ClassLevel;
   teacher_id: string | null;
   day_of_week: number | null;
+  schedule_days: number[] | null;
   start_time: string | null;
   end_time: string | null;
   location: string | null;

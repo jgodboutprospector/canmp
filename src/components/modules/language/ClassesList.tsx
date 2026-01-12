@@ -6,6 +6,21 @@ import { useClassSections } from '@/lib/hooks/useLanguageProgram';
 import { AddClassModal } from './AddClassModal';
 
 const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const shortDayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function formatScheduleDays(scheduleDays: number[] | null, dayOfWeek: number | null): string {
+  // Use schedule_days array if available, otherwise fall back to day_of_week
+  if (scheduleDays && scheduleDays.length > 0) {
+    if (scheduleDays.length === 1) {
+      return dayNames[scheduleDays[0]] + 's';
+    }
+    return scheduleDays.map(d => shortDayNames[d]).join('/');
+  }
+  if (dayOfWeek !== null) {
+    return dayNames[dayOfWeek] + 's';
+  }
+  return '';
+}
 
 const levelColors: Record<string, string> = {
   basic: 'bg-green-100 text-green-700',
@@ -133,11 +148,11 @@ export default function ClassesList() {
             </div>
 
             <div className="space-y-2 mb-4">
-              {classSection.day_of_week !== null && classSection.start_time && classSection.end_time && (
+              {((classSection.schedule_days?.length ?? 0) > 0 || classSection.day_of_week !== null) && classSection.start_time && classSection.end_time && (
                 <div className="flex items-center gap-2 text-sm text-gray-600">
                   <Clock className="w-4 h-4 text-gray-400" />
                   <span>
-                    {dayNames[classSection.day_of_week]}s, {classSection.start_time} - {classSection.end_time}
+                    {formatScheduleDays(classSection.schedule_days, classSection.day_of_week)}, {classSection.start_time} - {classSection.end_time}
                   </span>
                 </div>
               )}

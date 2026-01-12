@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseKey);
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
 // GET /api/donations - Fetch donations with optional filters
 export async function GET(request: NextRequest) {
   try {
+    const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const category = searchParams.get('category');
     const status = searchParams.get('status');
@@ -57,6 +53,7 @@ export async function GET(request: NextRequest) {
 // POST /api/donations - Create a new donation item
 export async function POST(request: NextRequest) {
   try {
+    const supabase = getSupabaseAdmin();
     const body = await request.json();
 
     const { data, error } = await supabase
@@ -88,6 +85,7 @@ export async function POST(request: NextRequest) {
 // PATCH /api/donations - Update a donation item
 export async function PATCH(request: NextRequest) {
   try {
+    const supabase = getSupabaseAdmin();
     const body = await request.json();
     const { id, ...updateData } = body;
 
@@ -95,7 +93,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Donation ID is required' }, { status: 400 });
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('donation_items')
       .update(updateData)
       .eq('id', id)
@@ -121,6 +119,7 @@ export async function PATCH(request: NextRequest) {
 // DELETE /api/donations - Soft delete a donation item
 export async function DELETE(request: NextRequest) {
   try {
+    const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
@@ -129,7 +128,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Soft delete
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('donation_items')
       .update({ is_active: false })
       .eq('id', id);

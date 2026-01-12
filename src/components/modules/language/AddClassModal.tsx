@@ -41,7 +41,7 @@ export function AddClassModal({ isOpen, onClose, onSuccess }: AddClassModalProps
     level: 'beginner' as ClassLevel,
     teacher_id: '',
     site_id: '',
-    day_of_week: '',
+    schedule_days: [] as number[],
     start_time: '',
     end_time: '',
     location: '',
@@ -89,7 +89,7 @@ export function AddClassModal({ isOpen, onClose, onSuccess }: AddClassModalProps
       level: 'beginner',
       teacher_id: '',
       site_id: '',
-      day_of_week: '',
+      schedule_days: [],
       start_time: '',
       end_time: '',
       location: '',
@@ -98,6 +98,15 @@ export function AddClassModal({ isOpen, onClose, onSuccess }: AddClassModalProps
       term_end: '',
     });
     setError('');
+  }
+
+  function toggleDay(dayValue: number) {
+    setForm(prev => ({
+      ...prev,
+      schedule_days: prev.schedule_days.includes(dayValue)
+        ? prev.schedule_days.filter(d => d !== dayValue)
+        : [...prev.schedule_days, dayValue].sort((a, b) => a - b)
+    }));
   }
 
   function handleClose() {
@@ -116,7 +125,8 @@ export function AddClassModal({ isOpen, onClose, onSuccess }: AddClassModalProps
         level: form.level,
         teacher_id: form.teacher_id || null,
         site_id: form.site_id || null,
-        day_of_week: form.day_of_week ? parseInt(form.day_of_week) : null,
+        day_of_week: form.schedule_days.length > 0 ? form.schedule_days[0] : null,
+        schedule_days: form.schedule_days,
         start_time: form.start_time || null,
         end_time: form.end_time || null,
         location: form.location.trim() || null,
@@ -231,20 +241,35 @@ export function AddClassModal({ isOpen, onClose, onSuccess }: AddClassModalProps
         {/* Schedule */}
         <div className="bg-gray-50 rounded-lg p-4 space-y-4">
           <h4 className="text-sm font-medium text-gray-900">Schedule</h4>
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Day of Week</label>
-              <select
-                value={form.day_of_week}
-                onChange={(e) => setForm({ ...form, day_of_week: e.target.value })}
-                className="input"
-              >
-                <option value="">Select day...</option>
-                {DAYS_OF_WEEK.map((day) => (
-                  <option key={day.value} value={day.value}>{day.label}</option>
-                ))}
-              </select>
+
+          {/* Days of Week - Checkboxes */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Days of Week</label>
+            <div className="flex flex-wrap gap-2">
+              {DAYS_OF_WEEK.filter(d => d.value >= 1 && d.value <= 5).map((day) => (
+                <button
+                  key={day.value}
+                  type="button"
+                  onClick={() => toggleDay(day.value)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    form.schedule_days.includes(day.value)
+                      ? 'bg-canmp-green-500 text-white'
+                      : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  {day.label.slice(0, 3)}
+                </button>
+              ))}
             </div>
+            {form.schedule_days.length > 0 && (
+              <p className="text-xs text-gray-500 mt-1">
+                Selected: {form.schedule_days.map(d => DAYS_OF_WEEK.find(day => day.value === d)?.label).join(', ')}
+              </p>
+            )}
+          </div>
+
+          {/* Time */}
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
               <input
