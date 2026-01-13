@@ -28,8 +28,8 @@ The deployment workflow (`.github/workflows/deploy-ec2.yml`) performs the follow
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key |
-| `NEON_ORG_ID` | Neon CRM organization ID |
-| `NEON_API_KEY` | Neon CRM API key |
+| `NEON_CRM_ORG_ID` | Neon CRM organization ID |
+| `NEON_CRM_API_KEY` | Neon CRM API key |
 | `SYNC_API_KEY` | API key for sync operations |
 | `AWS_REGION` | AWS region (`us-east-1`) |
 | `AWS_ACCESS_KEY_ID` | AWS access key |
