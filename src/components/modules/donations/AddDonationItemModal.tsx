@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { supabase } from '@/lib/supabase';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Upload, X, Image as ImageIcon } from 'lucide-react';
 
 interface AddDonationItemModalProps {
   isOpen: boolean;
@@ -30,9 +30,17 @@ const CONDITIONS = [
   { value: 'fair', label: 'Fair' },
 ];
 
+interface PhotoPreview {
+  file: File;
+  preview: string;
+}
+
 export function AddDonationItemModal({ isOpen, onClose, onSuccess }: AddDonationItemModalProps) {
   const [loading, setLoading] = useState(false);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [error, setError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [photos, setPhotos] = useState<PhotoPreview[]>([]);
 
   const [form, setForm] = useState({
     name: '',
@@ -60,6 +68,9 @@ export function AddDonationItemModal({ isOpen, onClose, onSuccess }: AddDonation
       donor_phone: '',
       donor_email: '',
     });
+    // Clean up photo previews
+    photos.forEach(photo => URL.revokeObjectURL(photo.preview));
+    setPhotos([]);
     setError('');
   }
 
@@ -68,28 +79,131 @@ export function AddDonationItemModal({ isOpen, onClose, onSuccess }: AddDonation
     onClose();
   }
 
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files) return;
+
+    const newPhotos: PhotoPreview[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (file.type.startsWith('image/')) {
+        newPhotos.push({
+          file,
+          preview: URL.createObjectURL(file),
+        });
+      }
+    }
+
+    setPhotos(prev => [...prev, ...newPhotos]);
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }
+
+  function removePhoto(index: number) {
+    setPhotos(prev => {
+      const newPhotos = [...prev];
+      URL.revokeObjectURL(newPhotos[index].preview);
+      newPhotos.splice(index, 1);
+      return newPhotos;
+    });
+  }
+
+  async function uploadPhotosToS3(donationItemId: string): Promise<string | null> {
+    if (photos.length === 0) return null;
+
+    setUploadingPhotos(true);
+    let primaryImageUrl: string | null = null;
+
+    try {
+      for (let i = 0; i < photos.length; i++) {
+        const photo = photos[i];
+
+        // Upload to S3 via API route
+        const formData = new FormData();
+        formData.append('file', photo.file);
+        formData.append('donation_item_id', donationItemId);
+        formData.append('is_primary', (i === 0).toString());
+
+        const response = await fetch('/api/donations/photos', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || 'Failed to upload photo');
+        }
+
+        if (i === 0 && result.data?.s3_url) {
+          primaryImageUrl = result.data.s3_url;
+        }
+      }
+
+      return primaryImageUrl;
+    } catch (err) {
+      console.error('Photo upload error:', err);
+      throw err;
+    } finally {
+      setUploadingPhotos(false);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError('');
 
     try {
-      const { error } = await (supabase as any).from('donation_items').insert({
-        name: form.name.trim(),
-        description: form.description.trim() || null,
-        category: form.category,
-        condition: form.condition,
-        quantity: form.quantity,
-        location: form.location.trim() || null,
-        bin_number: form.bin_number.trim() || null,
-        donor_name: form.donor_name.trim() || null,
-        donor_phone: form.donor_phone.trim() || null,
-        donor_email: form.donor_email.trim() || null,
-        status: 'available',
-        donated_date: new Date().toISOString().split('T')[0],
-      });
+      // First create the donation item
+      const { data: insertedItem, error: insertError } = await (supabase as any)
+        .from('donation_items')
+        .insert({
+          name: form.name.trim(),
+          description: form.description.trim() || null,
+          category: form.category,
+          condition: form.condition,
+          quantity: form.quantity,
+          location: form.location.trim() || null,
+          bin_number: form.bin_number.trim() || null,
+          donor_name: form.donor_name.trim() || null,
+          donor_phone: form.donor_phone.trim() || null,
+          donor_email: form.donor_email.trim() || null,
+          status: 'available',
+          donated_date: new Date().toISOString().split('T')[0],
+        })
+        .select('id')
+        .single();
 
-      if (error) throw error;
+      if (insertError) {
+        console.error('Error saving item:', insertError);
+        throw insertError;
+      }
+
+      // If we have photos, upload them
+      if (photos.length > 0 && insertedItem?.id) {
+        try {
+          const primaryImageUrl = await uploadPhotosToS3(insertedItem.id);
+
+          // Update the item with the primary image URL
+          if (primaryImageUrl) {
+            await (supabase as any)
+              .from('donation_items')
+              .update({ image_path: primaryImageUrl })
+              .eq('id', insertedItem.id);
+          }
+        } catch (photoErr) {
+          // Photos failed but item was created - show warning but don't fail
+          console.error('Photo upload failed:', photoErr);
+          setError('Item created but photos failed to upload. You can add photos later.');
+          onSuccess();
+          handleClose();
+          return;
+        }
+      }
 
       onSuccess();
       handleClose();
@@ -187,6 +301,71 @@ export function AddDonationItemModal({ isOpen, onClose, onSuccess }: AddDonation
           />
         </div>
 
+        {/* Photo Upload Section */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Photos</label>
+
+          {/* Photo previews */}
+          {photos.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              {photos.map((photo, index) => (
+                <div key={index} className="relative group">
+                  <img
+                    src={photo.preview}
+                    alt={`Preview ${index + 1}`}
+                    className="w-20 h-20 object-cover rounded-lg border border-gray-200"
+                  />
+                  {index === 0 && (
+                    <span className="absolute -top-1 -left-1 bg-blue-500 text-white text-xs px-1 rounded">
+                      Main
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => removePhoto(index)}
+                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Upload button */}
+          <div className="flex items-center gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleFileSelect}
+              className="hidden"
+              id="photo-upload"
+            />
+            <label
+              htmlFor="photo-upload"
+              className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+            >
+              {photos.length === 0 ? (
+                <>
+                  <Upload className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm text-gray-600">Add Photos</span>
+                </>
+              ) : (
+                <>
+                  <ImageIcon className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm text-gray-600">Add More Photos</span>
+                </>
+              )}
+            </label>
+            {photos.length > 0 && (
+              <span className="text-sm text-gray-500">{photos.length} photo{photos.length !== 1 ? 's' : ''} selected</span>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 mt-1">First photo will be used as the main image</p>
+        </div>
+
         <div className="grid grid-cols-2 gap-4">
           {/* Location */}
           <div>
@@ -258,13 +437,13 @@ export function AddDonationItemModal({ isOpen, onClose, onSuccess }: AddDonation
           </button>
           <button
             type="submit"
-            disabled={loading || !form.name.trim()}
+            disabled={loading || uploadingPhotos || !form.name.trim()}
             className="btn-primary"
           >
-            {loading ? (
+            {loading || uploadingPhotos ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Adding...
+                {uploadingPhotos ? 'Uploading Photos...' : 'Adding...'}
               </>
             ) : (
               'Add Item'
