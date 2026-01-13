@@ -32,6 +32,9 @@ jobs:
       - name: Run linting
         run: npm run lint --if-present
 
+      - name: Run tests
+        run: npm test -- --passWithNoTests --ci --reporters=default
+
       - name: Build application
         run: npm run build
         env:

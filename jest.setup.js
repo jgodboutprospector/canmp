@@ -1,5 +1,43 @@
 import '@testing-library/jest-dom';
 
+// Polyfill Request/Response for Next.js API route tests
+if (typeof Request === 'undefined') {
+  global.Request = class Request {
+    constructor(url, init = {}) {
+      this.url = url;
+      this.method = init.method || 'GET';
+      this.headers = new Map(Object.entries(init.headers || {}));
+      this._body = init.body;
+    }
+    async json() {
+      return JSON.parse(this._body || '{}');
+    }
+    async text() {
+      return this._body || '';
+    }
+  };
+}
+
+if (typeof Response === 'undefined') {
+  global.Response = class Response {
+    constructor(body, init = {}) {
+      this._body = body;
+      this.status = init.status || 200;
+      this.headers = new Map(Object.entries(init.headers || {}));
+    }
+    async json() {
+      return JSON.parse(this._body);
+    }
+    async text() {
+      return this._body;
+    }
+  };
+}
+
+if (typeof Headers === 'undefined') {
+  global.Headers = class Headers extends Map {};
+}
+
 // Mock next/navigation
 jest.mock('next/navigation', () => ({
   useRouter() {
