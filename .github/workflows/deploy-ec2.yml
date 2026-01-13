@@ -99,29 +99,34 @@ jobs:
             # Clean up old images
             docker image prune -f
 
-            # Wait for container to be healthy
-            echo "⏳ Waiting for application to be healthy..."
+            # Wait for container to be running and responding
+            echo "⏳ Waiting for application to start..."
             for i in {1..30}; do
-              STATUS=$(docker inspect --format='{{.State.Health.Status}}' canmp-app 2>/dev/null || echo "starting")
-              if [ "$STATUS" = "healthy" ]; then
-                echo "✅ Container is healthy!"
+              # Check if container is running
+              RUNNING=$(docker inspect --format='{{.State.Running}}' canmp-app 2>/dev/null || echo "false")
+              if [ "$RUNNING" != "true" ]; then
+                echo "   Container not running yet (attempt $i/30)"
+                sleep 5
+                continue
+              fi
+
+              # Check if app is responding
+              if curl -sf http://localhost:3000/ > /dev/null 2>&1; then
+                echo "✅ Application is responding!"
                 break
               fi
-              if [ "$STATUS" = "unhealthy" ]; then
-                echo "❌ Container is unhealthy!"
-                docker-compose logs --tail=50 canmp
-                exit 1
-              fi
-              echo "   Status: $STATUS (attempt $i/30)"
+
+              echo "   Waiting for app to respond (attempt $i/30)"
               sleep 5
             done
 
             # Final verification
-            if curl -sf http://localhost:3000/ > /dev/null; then
+            if curl -sf http://localhost:3000/ > /dev/null 2>&1; then
               echo "✅ Application responding on port 3000"
             else
-              echo "⚠️ App not responding, checking logs..."
-              docker-compose logs --tail=30 canmp
+              echo "⚠️ App not responding after 30 attempts, checking logs..."
+              docker-compose logs --tail=50 canmp
+              exit 1
             fi
 
             echo "✅ Deployment complete!"
