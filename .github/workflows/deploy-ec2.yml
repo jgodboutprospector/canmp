@@ -91,16 +91,52 @@ jobs:
             # Build and restart with Docker Compose
             docker-compose pull
             docker-compose build --no-cache
+
+            # Remove any orphaned containers before starting
+            docker-compose down --remove-orphans
             docker-compose up -d
 
             # Clean up old images
             docker image prune -f
+
+            # Wait for container to be healthy
+            echo "⏳ Waiting for application to be healthy..."
+            for i in {1..30}; do
+              STATUS=$(docker inspect --format='{{.State.Health.Status}}' canmp-app 2>/dev/null || echo "starting")
+              if [ "$STATUS" = "healthy" ]; then
+                echo "✅ Container is healthy!"
+                break
+              fi
+              if [ "$STATUS" = "unhealthy" ]; then
+                echo "❌ Container is unhealthy!"
+                docker-compose logs --tail=50 canmp
+                exit 1
+              fi
+              echo "   Status: $STATUS (attempt $i/30)"
+              sleep 5
+            done
+
+            # Final verification
+            if curl -sf http://localhost:3000/ > /dev/null; then
+              echo "✅ Application responding on port 3000"
+            else
+              echo "⚠️ App not responding, checking logs..."
+              docker-compose logs --tail=30 canmp
+            fi
 
             echo "✅ Deployment complete!"
           ENDSSH
 
       - name: Verify deployment
         run: |
-          sleep 30
-          curl -f http://${{ secrets.EC2_HOST }}:3000 || exit 1
-          echo "✅ Application is running!"
+          echo "⏳ Verifying deployment via HTTPS..."
+          for i in {1..6}; do
+            if curl -sf -o /dev/null https://admin.newmainerproject.org/; then
+              echo "✅ Application is running at https://admin.newmainerproject.org/"
+              exit 0
+            fi
+            echo "   Attempt $i/6 - waiting 10s..."
+            sleep 10
+          done
+          echo "❌ Application verification failed"
+          exit 1
