@@ -122,8 +122,19 @@ class AplosClient {
     // Note: Aplos uses app.aplos.com for API, not www.aplos.com
     this.baseUrl = process.env.APLOS_API_BASE_URL || 'https://app.aplos.com/hermes/api/v1';
     this.clientId = process.env.APLOS_CLIENT_ID || '';
-    // Handle multiline private key from env var
-    this.privateKey = (process.env.APLOS_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+    // Handle private key - it may be raw base64 or already PEM formatted
+    const rawKey = process.env.APLOS_PRIVATE_KEY || '';
+    if (rawKey.includes('-----BEGIN')) {
+      // Already PEM formatted
+      this.privateKey = rawKey.replace(/\\n/g, '\n');
+    } else if (rawKey) {
+      // Raw base64 - convert to PEM format
+      // Split into 64-character lines and wrap with headers
+      const formatted = rawKey.match(/.{1,64}/g)?.join('\n') || rawKey;
+      this.privateKey = `-----BEGIN PRIVATE KEY-----\n${formatted}\n-----END PRIVATE KEY-----`;
+    } else {
+      this.privateKey = '';
+    }
   }
 
   /**
