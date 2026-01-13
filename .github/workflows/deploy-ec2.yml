@@ -72,14 +72,20 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          NEON_CRM_ORG_ID=${{ secrets.NEON_CRM_ORG_ID }}
-          NEON_CRM_API_KEY=${{ secrets.NEON_CRM_API_KEY }}
+          NEON_ORG_ID=${{ secrets.NEON_ORG_ID }}
+          NEON_API_KEY=${{ secrets.NEON_API_KEY }}
           SYNC_API_KEY=${{ secrets.SYNC_API_KEY }}
           AWS_REGION=${{ secrets.AWS_REGION }}
           AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_S3_BUCKET=${{ secrets.AWS_S3_BUCKET }}
           AWS_CLOUDFRONT_URL=${{ secrets.AWS_CLOUDFRONT_URL }}
+          APLOS_API_BASE_URL=${{ secrets.APLOS_API_BASE_URL }}
+          APLOS_CLIENT_ID=${{ secrets.APLOS_CLIENT_ID }}
+          APLOS_PRIVATE_KEY=${{ secrets.APLOS_PRIVATE_KEY }}
+          RAMP_API_BASE_URL=${{ secrets.RAMP_API_BASE_URL }}
+          RAMP_CLIENT_ID=${{ secrets.RAMP_CLIENT_ID }}
+          RAMP_CLIENT_SECRET=${{ secrets.RAMP_CLIENT_SECRET }}
           ENVEOF
 
             # Build and restart with Docker Compose

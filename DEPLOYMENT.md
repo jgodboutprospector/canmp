@@ -28,14 +28,20 @@ The deployment workflow (`.github/workflows/deploy-ec2.yml`) performs the follow
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key |
-| `NEON_CRM_ORG_ID` | Neon CRM organization ID |
-| `NEON_CRM_API_KEY` | Neon CRM API key |
+| `NEON_ORG_ID` | Neon CRM organization ID |
+| `NEON_API_KEY` | Neon CRM API key |
 | `SYNC_API_KEY` | API key for sync operations |
 | `AWS_REGION` | AWS region (`us-east-1`) |
 | `AWS_ACCESS_KEY_ID` | AWS access key |
 | `AWS_SECRET_ACCESS_KEY` | AWS secret key |
 | `AWS_S3_BUCKET` | S3 bucket for uploads |
 | `AWS_CLOUDFRONT_URL` | CloudFront distribution URL |
+| `APLOS_API_BASE_URL` | Aplos API base URL |
+| `APLOS_CLIENT_ID` | Aplos client ID |
+| `APLOS_PRIVATE_KEY` | Aplos private key |
+| `RAMP_API_BASE_URL` | Ramp API base URL |
+| `RAMP_CLIENT_ID` | Ramp client ID |
+| `RAMP_CLIENT_SECRET` | Ramp client secret |
 
 ### SSH Key Setup
 
