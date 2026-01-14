@@ -6,6 +6,11 @@ frontend:
         - npm ci
     build:
       commands:
+        # Run tests before building - deployment fails if tests fail
+        - echo "Running API endpoint tests..."
+        - npm test -- --passWithNoTests --ci --reporters=default
+        # Build the application
+        - echo "Building application..."
         - npm run build
   artifacts:
     baseDirectory: .next

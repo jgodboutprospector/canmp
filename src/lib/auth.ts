@@ -71,6 +71,8 @@ export async function signOut() {
 
 // Get user profile from users table (linked via auth_user_id)
 export async function getUserProfile(authUserId: string): Promise<UserProfile | null> {
+  console.log('getUserProfile called with authUserId:', authUserId);
+
   const { data, error } = await (supabase as any)
     .from('users')
     .select('*')
@@ -79,8 +81,11 @@ export async function getUserProfile(authUserId: string): Promise<UserProfile | 
 
   if (error) {
     console.error('Error fetching user profile:', error);
+    console.error('authUserId was:', authUserId);
     return null;
   }
+
+  console.log('User profile loaded:', data);
 
   // Map users table fields to UserProfile interface
   return {
