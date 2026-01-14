@@ -69,12 +69,12 @@ export async function signOut() {
   if (error) throw error;
 }
 
-// Get user profile
-export async function getUserProfile(userId: string): Promise<UserProfile | null> {
+// Get user profile from users table (linked via auth_user_id)
+export async function getUserProfile(authUserId: string): Promise<UserProfile | null> {
   const { data, error } = await (supabase as any)
-    .from('user_profiles')
+    .from('users')
     .select('*')
-    .eq('id', userId)
+    .eq('auth_user_id', authUserId)
     .single();
 
   if (error) {
@@ -82,15 +82,26 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
     return null;
   }
 
-  return data as UserProfile;
+  // Map users table fields to UserProfile interface
+  return {
+    id: data.id,
+    email: data.email,
+    first_name: data.first_name,
+    last_name: data.last_name,
+    role: data.role,
+    teacher_id: null,
+    volunteer_id: null,
+    avatar_url: null,
+    is_active: data.is_active,
+  } as UserProfile;
 }
 
-// Update last login
-export async function updateLastLogin(userId: string) {
+// Update last login (users table uses updated_at, not last_login)
+export async function updateLastLogin(authUserId: string) {
   await (supabase as any)
-    .from('user_profiles')
-    .update({ last_login: new Date().toISOString() })
-    .eq('id', userId);
+    .from('users')
+    .update({ updated_at: new Date().toISOString() })
+    .eq('auth_user_id', authUserId);
 }
 
 // Role permission helpers
