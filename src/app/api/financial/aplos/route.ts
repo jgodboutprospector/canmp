@@ -59,6 +59,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const dataType = searchParams.get('type') || 'funds';
   const fundId = searchParams.get('fund_id');
+  const accountNumber = searchParams.get('account_number');
 
   const hasAplosCredentials = isAplosConfigured();
 
@@ -76,10 +77,22 @@ export async function GET(request: Request) {
             });
           }
 
+          case 'accounts': {
+            const accounts = await aplosClient.getAccounts();
+            return NextResponse.json({
+              success: true,
+              data: accounts,
+              isDemo: false,
+            });
+          }
+
           case 'transactions': {
-            const params: { fund_id?: string } = {};
+            const params: { fund_id?: string; account_number?: string } = {};
             if (fundId && fundId !== 'all') {
               params.fund_id = fundId;
+            }
+            if (accountNumber && accountNumber !== 'all') {
+              params.account_number = accountNumber;
             }
             const transactions = await aplosClient.getTransactions(params);
             return NextResponse.json({
@@ -151,12 +164,32 @@ export async function GET(request: Request) {
       }
     }
 
+    // Demo accounts for fallback
+    const demoAccounts = [
+      { account_number: '1000', name: 'Checking - Main', type: 'asset', balance: 125000 },
+      { account_number: '1010', name: 'Checking - Operations', type: 'asset', balance: 45000 },
+      { account_number: '1020', name: 'Savings', type: 'asset', balance: 32000 },
+      { account_number: '1100', name: 'Accounts Receivable', type: 'asset', balance: 15000 },
+      { account_number: '2000', name: 'Accounts Payable', type: 'liability', balance: 8500 },
+      { account_number: '4000', name: 'Grant Revenue', type: 'revenue', balance: 180000 },
+      { account_number: '4100', name: 'Donations', type: 'revenue', balance: 85000 },
+      { account_number: '5000', name: 'Salaries', type: 'expense', balance: 112000 },
+      { account_number: '5100', name: 'Rent', type: 'expense', balance: 34000 },
+    ];
+
     // Return demo data if API not configured or failed
     switch (dataType) {
       case 'funds':
         return NextResponse.json({
           success: true,
           data: demoFunds,
+          isDemo: true,
+        });
+
+      case 'accounts':
+        return NextResponse.json({
+          success: true,
+          data: demoAccounts,
           isDemo: true,
         });
 

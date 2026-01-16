@@ -293,10 +293,11 @@ class AplosClient {
   }): Promise<AplosTransaction[]> {
     const searchParams = new URLSearchParams();
 
-    if (params?.fund_id) searchParams.append('fund_id', params.fund_id);
-    if (params?.account_number) searchParams.append('account_number', params.account_number);
-    if (params?.start_date) searchParams.append('start_date', params.start_date);
-    if (params?.end_date) searchParams.append('end_date', params.end_date);
+    // Aplos API uses f_ prefix for filter parameters
+    if (params?.fund_id) searchParams.append('f_fund', params.fund_id);
+    if (params?.account_number) searchParams.append('f_accountnumber', params.account_number);
+    if (params?.start_date) searchParams.append('f_rangestart', params.start_date);
+    if (params?.end_date) searchParams.append('f_rangeend', params.end_date);
     if (params?.page) searchParams.append('page', params.page.toString());
     if (params?.per_page) searchParams.append('per_page', params.per_page.toString());
 
@@ -313,7 +314,8 @@ class AplosClient {
   }
 
   // ============================================
-  // Reports
+  // Reports (computed from transactions and accounts)
+  // Note: Aplos API does not have report endpoints, so we compute these from raw data
   // ============================================
 
   async getIncomeStatement(params?: {
@@ -321,51 +323,145 @@ class AplosClient {
     start_date?: string;
     end_date?: string;
   }): Promise<AplosIncomeStatementLine[]> {
-    const searchParams = new URLSearchParams();
+    // Fetch transactions and accounts to compute income statement
+    const [transactions, accounts] = await Promise.all([
+      this.getTransactions({
+        fund_id: params?.fund_id,
+        start_date: params?.start_date || getDateRange('ytd').start_date,
+        end_date: params?.end_date || getDateRange('ytd').end_date,
+      }),
+      this.getAccounts(),
+    ]);
 
-    if (params?.fund_id) searchParams.append('fund_id', params.fund_id);
-    if (params?.start_date) searchParams.append('start_date', params.start_date);
-    if (params?.end_date) searchParams.append('end_date', params.end_date);
+    // Group transactions by account and categorize as revenue or expense
+    const accountTotals: Record<string, { current: number; ytd: number; type: string }> = {};
 
-    const query = searchParams.toString();
-    const response = await this.request<AplosApiResponse<AplosIncomeStatementLine[]>>(
-      `/reports/income-statement${query ? `?${query}` : ''}`
-    );
-    return response.data;
+    for (const txn of transactions) {
+      const accountNum = txn.account_number || 'unknown';
+      const account = accounts.find(a => a.account_number === accountNum);
+      const accountType = account?.type || 'expense';
+
+      if (!accountTotals[accountNum]) {
+        accountTotals[accountNum] = {
+          current: 0,
+          ytd: 0,
+          type: accountType,
+        };
+      }
+
+      // For income statement, we care about revenue and expense accounts
+      if (accountType === 'revenue' || accountType === 'expense') {
+        accountTotals[accountNum].current += txn.amount;
+        accountTotals[accountNum].ytd += txn.amount;
+      }
+    }
+
+    // Convert to income statement lines
+    const lines: AplosIncomeStatementLine[] = [];
+
+    for (const [accountNum, data] of Object.entries(accountTotals)) {
+      const account = accounts.find(a => a.account_number === accountNum);
+      if (data.type === 'revenue' || data.type === 'expense') {
+        lines.push({
+          account_number: accountNum,
+          account_name: account?.name || `Account ${accountNum}`,
+          category: data.type === 'revenue' ? 'Revenue' : 'Expenses',
+          current_amount: Math.abs(data.current),
+          ytd_amount: Math.abs(data.ytd),
+        });
+      }
+    }
+
+    return lines.sort((a, b) => {
+      // Sort by category (Revenue first), then by amount descending
+      if (a.category !== b.category) {
+        return a.category === 'Revenue' ? -1 : 1;
+      }
+      return b.ytd_amount - a.ytd_amount;
+    });
   }
 
   async getTrialBalance(params?: {
     fund_id?: string;
     as_of_date?: string;
   }): Promise<AplosTrialBalanceLine[]> {
-    const searchParams = new URLSearchParams();
+    // Fetch accounts to get balances
+    const accounts = await this.getAccounts();
 
-    if (params?.fund_id) searchParams.append('fund_id', params.fund_id);
-    if (params?.as_of_date) searchParams.append('as_of_date', params.as_of_date);
+    // Convert accounts to trial balance lines
+    const lines: AplosTrialBalanceLine[] = accounts.map(account => {
+      const balance = account.balance || 0;
+      const isDebitAccount = ['asset', 'expense'].includes(account.type);
 
-    const query = searchParams.toString();
-    const response = await this.request<AplosApiResponse<AplosTrialBalanceLine[]>>(
-      `/reports/trial-balance${query ? `?${query}` : ''}`
-    );
-    return response.data;
+      return {
+        account_number: account.account_number,
+        account_name: account.name,
+        type: account.type.charAt(0).toUpperCase() + account.type.slice(1),
+        debit: isDebitAccount && balance > 0 ? balance : 0,
+        credit: !isDebitAccount && balance > 0 ? balance : (isDebitAccount && balance < 0 ? Math.abs(balance) : 0),
+        net_balance: balance,
+      };
+    });
+
+    return lines.filter(l => l.debit > 0 || l.credit > 0 || l.net_balance !== 0);
   }
 
   async getYearOverYearComparison(params?: {
     fund_id?: string;
     current_year?: number;
   }): Promise<AplosYoYData[]> {
-    const searchParams = new URLSearchParams();
     const currentYear = params?.current_year || new Date().getFullYear();
+    const previousYear = currentYear - 1;
 
-    if (params?.fund_id) searchParams.append('fund_id', params.fund_id);
-    searchParams.append('current_year', currentYear.toString());
-    searchParams.append('previous_year', (currentYear - 1).toString());
+    // Fetch transactions for both years
+    const [currentYearTxns, previousYearTxns] = await Promise.all([
+      this.getTransactions({
+        fund_id: params?.fund_id,
+        start_date: `${currentYear}-01-01`,
+        end_date: `${currentYear}-12-31`,
+      }),
+      this.getTransactions({
+        fund_id: params?.fund_id,
+        start_date: `${previousYear}-01-01`,
+        end_date: `${previousYear}-12-31`,
+      }),
+    ]);
 
-    const query = searchParams.toString();
-    const response = await this.request<AplosApiResponse<AplosYoYData[]>>(
-      `/reports/year-over-year${query ? `?${query}` : ''}`
-    );
-    return response.data;
+    // Group by month
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthlyData: AplosYoYData[] = monthNames.map((month, index) => ({
+      month,
+      currentYear: 0,
+      previousYear: 0,
+      percentChange: 0,
+    }));
+
+    // Sum transactions by month for current year
+    for (const txn of currentYearTxns) {
+      const month = new Date(txn.date).getMonth();
+      if (txn.amount > 0) { // Only count income/positive amounts
+        monthlyData[month].currentYear += txn.amount;
+      }
+    }
+
+    // Sum transactions by month for previous year
+    for (const txn of previousYearTxns) {
+      const month = new Date(txn.date).getMonth();
+      if (txn.amount > 0) {
+        monthlyData[month].previousYear += txn.amount;
+      }
+    }
+
+    // Calculate percent change
+    for (const data of monthlyData) {
+      if (data.previousYear > 0) {
+        data.percentChange = ((data.currentYear - data.previousYear) / data.previousYear) * 100;
+      } else if (data.currentYear > 0) {
+        data.percentChange = 100;
+      }
+    }
+
+    return monthlyData;
   }
 
   // ============================================
