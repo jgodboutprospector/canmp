@@ -20,31 +20,11 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { format } from 'date-fns';
 import { Modal } from '@/components/ui/Modal';
+import { useDonations, type DonationItem } from '@/lib/hooks/useDonations';
 import type {
   DonationCategory,
   DonationStatus,
-  DonationPhoto,
 } from '@/types/database';
-
-interface DonationItem {
-  id: string;
-  name: string;
-  description: string | null;
-  category: DonationCategory;
-  condition: string | null;
-  quantity: number;
-  status: DonationStatus;
-  location: string | null;
-  bin_number: string | null;
-  donor_name: string | null;
-  donated_date: string | null;
-  image_path: string | null;
-  photos?: DonationPhoto[];
-  claimed_by_household: {
-    id: string;
-    name: string;
-  } | null;
-}
 
 const CATEGORIES: { id: DonationCategory; label: string; icon: string }[] = [
   { id: 'furniture', label: 'Furniture', icon: '🪑' },
@@ -79,8 +59,17 @@ const CONDITION_OPTIONS = [
 ];
 
 export default function DonationsPage() {
-  const [items, setItems] = useState<DonationItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Use the unified data-fetching hook
+  const {
+    items,
+    loading,
+    error: fetchError,
+    refresh: fetchItems,
+    createItem,
+    updateItem,
+    deleteItem: deleteItemFromAPI,
+  } = useDonations();
+
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<DonationCategory | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<DonationStatus | 'all'>('all');
@@ -109,31 +98,6 @@ export default function DonationsPage() {
   });
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    fetchItems();
-  }, []);
-
-  async function fetchItems() {
-    try {
-      const { data, error } = await (supabase as any)
-        .from('donation_items')
-        .select(`
-          *,
-          claimed_by_household:households(id, name),
-          photos:donation_photos(*)
-        `)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setItems(data || []);
-    } catch (err) {
-      console.error('Error fetching items:', err);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   function resetForm() {
     setNewItem({
       name: '',
@@ -155,35 +119,25 @@ export default function DonationsPage() {
     try {
       const itemData = {
         name: newItem.name.trim(),
-        description: newItem.description.trim() || null,
+        description: newItem.description.trim() || undefined,
         category: newItem.category,
         condition: newItem.condition,
         quantity: newItem.quantity,
-        location: newItem.location.trim() || null,
-        bin_number: newItem.bin_number.trim() || null,
-        donor_name: newItem.donor_name.trim() || null,
-        donor_phone: newItem.donor_phone.trim() || null,
-        donor_email: newItem.donor_email.trim() || null,
+        location: newItem.location.trim() || undefined,
+        bin_number: newItem.bin_number.trim() || undefined,
+        donor_name: newItem.donor_name.trim() || undefined,
+        donor_phone: newItem.donor_phone.trim() || undefined,
+        donor_email: newItem.donor_email.trim() || undefined,
       };
 
       if (editingItem) {
-        const { error } = await (supabase as any)
-          .from('donation_items')
-          .update(itemData)
-          .eq('id', editingItem.id);
-        if (error) throw error;
+        await updateItem({ id: editingItem.id, ...itemData });
       } else {
-        const { error } = await (supabase as any).from('donation_items').insert({
-          ...itemData,
-          status: 'available',
-          donated_date: new Date().toISOString().split('T')[0],
-        });
-        if (error) throw error;
+        await createItem(itemData);
       }
 
       setShowAddModal(false);
       resetForm();
-      await fetchItems();
     } catch (err) {
       console.error('Error saving item:', err);
     } finally {
@@ -209,16 +163,11 @@ export default function DonationsPage() {
     setShowAddModal(true);
   }
 
-  async function deleteItem(itemId: string) {
+  async function handleDeleteItem(itemId: string) {
     if (!confirm('Are you sure you want to delete this donation item?')) return;
 
     try {
-      const { error } = await (supabase as any)
-        .from('donation_items')
-        .update({ is_active: false })
-        .eq('id', itemId);
-      if (error) throw error;
-      await fetchItems();
+      await deleteItemFromAPI(itemId);
       setSelectedItem(null);
     } catch (err) {
       console.error('Error deleting item:', err);
@@ -227,13 +176,7 @@ export default function DonationsPage() {
 
   async function updateItemStatus(itemId: string, status: DonationStatus) {
     try {
-      const { error } = await (supabase as any)
-        .from('donation_items')
-        .update({ status })
-        .eq('id', itemId);
-
-      if (error) throw error;
-      await fetchItems();
+      await updateItem({ id: itemId, status });
       setSelectedItem(null);
     } catch (err) {
       console.error('Error updating item:', err);
@@ -713,7 +656,7 @@ export default function DonationsPage() {
                 <Edit2 className="w-4 h-4" />
               </button>
               <button
-                onClick={() => deleteItem(selectedItem.id)}
+                onClick={() => handleDeleteItem(selectedItem.id)}
                 className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
                 title="Delete item"
               >

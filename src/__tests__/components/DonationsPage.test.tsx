@@ -36,6 +36,11 @@ const mockDonations = [
   },
 ];
 
+// Mock fetch for the useDonations hook
+const mockFetch = jest.fn();
+global.fetch = mockFetch;
+
+// Keep supabase mock for photo upload functionality that still uses direct supabase calls
 jest.mock('@/lib/supabase', () => ({
   supabase: {
     from: jest.fn(() => ({
@@ -45,12 +50,22 @@ jest.mock('@/lib/supabase', () => ({
       eq: jest.fn().mockResolvedValue({ data: null, error: null }),
       order: jest.fn().mockResolvedValue({ data: mockDonations, error: null }),
     })),
+    storage: {
+      from: jest.fn(() => ({
+        upload: jest.fn().mockResolvedValue({ data: { path: 'test.jpg' }, error: null }),
+        getPublicUrl: jest.fn().mockReturnValue({ data: { publicUrl: 'https://test.com/test.jpg' } }),
+      })),
+    },
   },
 }));
 
 describe('DonationsPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Setup default mock response for fetch
+    mockFetch.mockResolvedValue({
+      json: async () => ({ success: true, data: mockDonations }),
+    });
   });
 
   it('should render Add Item button', async () => {
@@ -71,12 +86,18 @@ describe('DonationsPage', () => {
 });
 
 describe('DonationsPage API Integration', () => {
-  it('should call Supabase to fetch donation_items on mount', async () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockFetch.mockResolvedValue({
+      json: async () => ({ success: true, data: mockDonations }),
+    });
+  });
+
+  it('should call API to fetch donation_items on mount', async () => {
     render(<DonationsPage />);
 
     await waitFor(() => {
-      const { supabase } = require('@/lib/supabase');
-      expect(supabase.from).toHaveBeenCalledWith('donation_items');
+      expect(mockFetch).toHaveBeenCalledWith('/api/donations');
     });
   });
 });

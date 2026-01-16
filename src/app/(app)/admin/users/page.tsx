@@ -43,6 +43,9 @@ export default function UserManagementPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const { isAdmin } = useAuth();
 
   useEffect(() => {
@@ -71,6 +74,35 @@ export default function UserManagementPage() {
       u.first_name?.toLowerCase().includes(search.toLowerCase()) ||
       u.last_name?.toLowerCase().includes(search.toLowerCase())
   );
+
+  async function handleDeleteUser(user: UserProfile) {
+    if (!confirm(`Are you sure you want to delete ${user.first_name || user.email}? This action cannot be undone.`)) {
+      return;
+    }
+
+    setActionLoading(user.id);
+    try {
+      const response = await fetch(`/api/admin/users?userId=${user.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to delete user');
+      }
+
+      fetchUsers();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to delete user');
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  function handleEditUser(user: UserProfile) {
+    setSelectedUser(user);
+    setShowEditModal(true);
+  }
 
   const usersByRole: Record<UserRole, number> = {
     admin: users.filter((u) => u.role === 'admin').length,
@@ -232,11 +264,24 @@ export default function UserManagementPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <button className="p-1 text-gray-400 hover:text-gray-600">
+                      <button
+                        onClick={() => handleEditUser(user)}
+                        className="p-1 text-gray-400 hover:text-gray-600"
+                        title="Edit user"
+                      >
                         <Edit className="w-4 h-4" />
                       </button>
-                      <button className="p-1 text-gray-400 hover:text-red-600">
-                        <Trash2 className="w-4 h-4" />
+                      <button
+                        onClick={() => handleDeleteUser(user)}
+                        disabled={actionLoading === user.id}
+                        className="p-1 text-gray-400 hover:text-red-600 disabled:opacity-50"
+                        title="Delete user"
+                      >
+                        {actionLoading === user.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
                       </button>
                     </div>
                   </td>
@@ -256,6 +301,18 @@ export default function UserManagementPage() {
       {/* Add User Modal */}
       {showAddModal && (
         <AddUserModal onClose={() => setShowAddModal(false)} onSuccess={fetchUsers} />
+      )}
+
+      {/* Edit User Modal */}
+      {showEditModal && selectedUser && (
+        <EditUserModal
+          user={selectedUser}
+          onClose={() => {
+            setShowEditModal(false);
+            setSelectedUser(null);
+          }}
+          onSuccess={fetchUsers}
+        />
       )}
     </div>
   );
@@ -414,6 +471,166 @@ function AddUserModal({
                 </>
               ) : (
                 'Create User'
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function EditUserModal({
+  user,
+  onClose,
+  onSuccess,
+}: {
+  user: UserProfile;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [firstName, setFirstName] = useState(user.first_name || '');
+  const [lastName, setLastName] = useState(user.last_name || '');
+  const [role, setRole] = useState<UserRole>(user.role);
+  const [isActive, setIsActive] = useState(user.is_active);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          updates: {
+            first_name: firstName,
+            last_name: lastName,
+            role,
+            is_active: isActive,
+          },
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update user');
+      }
+
+      onSuccess();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update user');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Edit User</h2>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Email
+            </label>
+            <input
+              type="email"
+              value={user.email}
+              disabled
+              className="input bg-gray-50 text-gray-500 cursor-not-allowed"
+            />
+            <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                First Name
+              </label>
+              <input
+                type="text"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                className="input"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Last Name
+              </label>
+              <input
+                type="text"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                className="input"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Role
+            </label>
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value as UserRole)}
+              className="input"
+            >
+              {Object.entries(roleConfig).map(([key, config]) => (
+                <option key={key} value={key}>
+                  {config.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isActive}
+                onChange={(e) => setIsActive(e.target.checked)}
+                className="w-4 h-4 text-canmp-green-600 rounded border-gray-300 focus:ring-canmp-green-500"
+              />
+              <span className="text-sm font-medium text-gray-700">Active</span>
+            </label>
+            <p className="text-xs text-gray-500 mt-1">Inactive users cannot log in</p>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn-primary"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Changes'
               )}
             </button>
           </div>
