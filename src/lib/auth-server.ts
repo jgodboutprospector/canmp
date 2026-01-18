@@ -39,13 +39,16 @@ export async function getServerSession() {
     }
   );
 
-  const { data: { session }, error } = await supabase.auth.getSession();
+  // Use getUser() instead of getSession() for more reliable server-side auth
+  // getUser() validates the JWT token against Supabase auth server
+  const { data: { user }, error } = await supabase.auth.getUser();
 
-  if (error || !session) {
+  if (error || !user) {
     return null;
   }
 
-  return session;
+  // Return a session-like object with the user
+  return { user };
 }
 
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
