@@ -25,17 +25,21 @@ export default function LoginPage() {
 
       if (error) {
         setError(error.message);
+        setLoading(false);
         return;
       }
 
       if (data.session) {
+        // Use router.refresh() to ensure the session cookies are properly set
+        // before navigating, then redirect
+        router.refresh();
         router.push('/dashboard');
       }
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');
-    } finally {
       setLoading(false);
     }
+    // Note: don't setLoading(false) on success - keep loading while redirecting
   }
 
   return (
