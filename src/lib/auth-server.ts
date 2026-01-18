@@ -49,27 +49,12 @@ export async function getServerSession() {
 }
 
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
-  const cookieStore = await cookies();
+  // Use service role to bypass RLS for profile lookup
+  const { createClient } = await import('@supabase/supabase-js');
 
-  const supabase = createServerClient(
+  const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          } catch {
-            // Ignore
-          }
-        },
-      },
-    }
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
   const { data, error } = await supabase
@@ -79,6 +64,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
     .single();
 
   if (error || !data) {
+    console.error('getUserProfile error:', error);
     return null;
   }
 
