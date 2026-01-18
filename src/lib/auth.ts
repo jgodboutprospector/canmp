@@ -69,36 +69,47 @@ export async function signOut() {
   if (error) throw error;
 }
 
-// Get user profile from users table (linked via auth_user_id)
+// Get user profile via API (uses server-side auth with service role to bypass RLS)
 export async function getUserProfile(authUserId: string): Promise<UserProfile | null> {
   console.log('getUserProfile called with authUserId:', authUserId);
 
-  const { data, error } = await (supabase as any)
-    .from('users')
-    .select('*')
-    .eq('auth_user_id', authUserId)
-    .single();
+  try {
+    const response = await fetch('/api/auth/profile', {
+      method: 'GET',
+      credentials: 'include',
+    });
 
-  if (error) {
+    if (!response.ok) {
+      console.error('Profile API returned:', response.status);
+      return null;
+    }
+
+    const result = await response.json();
+
+    if (!result.success || !result.data) {
+      console.error('Profile API error:', result.error);
+      return null;
+    }
+
+    console.log('User profile loaded:', result.data);
+
+    // Map API response to UserProfile interface
+    const data = result.data;
+    return {
+      id: data.id,
+      email: data.email,
+      first_name: data.first_name,
+      last_name: data.last_name,
+      role: data.role,
+      teacher_id: null,
+      volunteer_id: null,
+      avatar_url: null,
+      is_active: data.is_active ?? true,
+    } as UserProfile;
+  } catch (error) {
     console.error('Error fetching user profile:', error);
-    console.error('authUserId was:', authUserId);
     return null;
   }
-
-  console.log('User profile loaded:', data);
-
-  // Map users table fields to UserProfile interface
-  return {
-    id: data.id,
-    email: data.email,
-    first_name: data.first_name,
-    last_name: data.last_name,
-    role: data.role,
-    teacher_id: null,
-    volunteer_id: null,
-    avatar_url: null,
-    is_active: data.is_active,
-  } as UserProfile;
 }
 
 // Update last login (users table uses updated_at, not last_login)
