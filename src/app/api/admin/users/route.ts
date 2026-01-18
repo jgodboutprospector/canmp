@@ -1,17 +1,18 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { requireRole } from '@/lib/auth-server';
+import { createUserSchema } from '@/lib/validation/schemas';
+import { handleApiError } from '@/lib/api-error';
 
 export async function POST(request: Request) {
   try {
-    const { email, password, firstName, lastName, role } = await request.json();
+    // Require admin role
+    await requireRole(['admin']);
 
-    // Validate required fields
-    if (!email || !password) {
-      return NextResponse.json(
-        { error: 'Email and password are required' },
-        { status: 400 }
-      );
-    }
+    const body = await request.json();
+
+    // Validate input
+    const { email, password, firstName, lastName, role } = createUserSchema.parse(body);
 
     // Create user with Supabase Admin API
     const supabaseAdmin = getSupabaseAdmin();
@@ -61,16 +62,15 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
-    console.error('Error creating user:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
 export async function GET() {
   try {
+    // Require admin role
+    await requireRole(['admin']);
+
     const supabaseAdmin = getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
       .from('user_profiles')
@@ -83,15 +83,15 @@ export async function GET() {
 
     return NextResponse.json({ users: data });
   } catch (error) {
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
 export async function PATCH(request: Request) {
   try {
+    // Require admin role
+    await requireRole(['admin']);
+
     const { userId, updates } = await request.json();
 
     if (!userId) {
@@ -113,15 +113,15 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
 export async function DELETE(request: Request) {
   try {
+    // Require admin role
+    await requireRole(['admin']);
+
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
 
@@ -142,9 +142,6 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

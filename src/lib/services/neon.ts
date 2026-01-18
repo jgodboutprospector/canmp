@@ -13,6 +13,8 @@
  * - Memberships
  */
 
+import { fetchWithTimeout, sanitizeErrorMessage } from '../api-utils';
+
 // ============================================
 // Types for Neon CRM API responses
 // ============================================
@@ -106,17 +108,17 @@ class NeonClient {
       throw new Error('Neon credentials not configured. Set NEON_ORG_ID and NEON_API_KEY.');
     }
 
-    const response = await fetch(`${this.baseUrl}/common/login`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/common/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: `login.orgId=${encodeURIComponent(this.orgId)}&login.apiKey=${encodeURIComponent(this.apiKey)}`,
-    });
+    }, 30000);
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Neon Login Error: ${response.status} - ${errorText}`);
+      throw new Error(`Neon Login Error: ${response.status} - ${sanitizeErrorMessage(errorText)}`);
     }
 
     const data = await response.json();
@@ -146,16 +148,16 @@ class NeonClient {
       ...params,
     });
 
-    const response = await fetch(`${this.baseUrl}${endpoint}?${searchParams.toString()}`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}${endpoint}?${searchParams.toString()}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
       },
-    });
+    }, 30000);
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Neon API Error: ${response.status} - ${errorText}`);
+      throw new Error(`Neon API Error: ${response.status} - ${sanitizeErrorMessage(errorText)}`);
     }
 
     return response.json();
@@ -170,17 +172,17 @@ class NeonClient {
   ): Promise<T> {
     const sessionId = await this.login();
 
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}${endpoint}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: `userSessionId=${sessionId}&${data}`,
-    });
+    }, 30000);
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Neon API Error: ${response.status} - ${errorText}`);
+      throw new Error(`Neon API Error: ${response.status} - ${sanitizeErrorMessage(errorText)}`);
     }
 
     return response.json();
@@ -242,23 +244,25 @@ class NeonClient {
     params.append('page.pageSize', String(pageSize));
 
     try {
-      const response = await fetch(`${this.baseUrl}/account/listAccounts?${params.toString()}`, {
+      const response = await fetchWithTimeout(`${this.baseUrl}/account/listAccounts?${params.toString()}`, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
         },
-      });
+      }, 30000);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Neon listAccounts error:', errorText);
+        console.error('Neon listAccounts error:', sanitizeErrorMessage(errorText));
         throw new Error(`Neon API Error: ${response.status}`);
       }
 
       const data = await response.json();
 
-      // Log the response for debugging (first 1000 chars to see field structure)
-      console.log('Neon listAccounts response:', JSON.stringify(data).substring(0, 1000));
+      // Log the response for debugging (first 200 chars to see field structure)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Neon listAccounts response preview:', JSON.stringify(data).substring(0, 200));
+      }
 
       if (data.listAccountsResponse?.operationResult !== 'SUCCESS') {
         console.error('Neon listAccounts failed:', JSON.stringify(data.listAccountsResponse));
@@ -336,23 +340,25 @@ class NeonClient {
     params.append('page.pageSize', String(pageSize));
 
     try {
-      const response = await fetch(`${this.baseUrl}/donation/listDonations?${params.toString()}`, {
+      const response = await fetchWithTimeout(`${this.baseUrl}/donation/listDonations?${params.toString()}`, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
         },
-      });
+      }, 30000);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Neon listDonations error:', errorText);
+        console.error('Neon listDonations error:', sanitizeErrorMessage(errorText));
         return { data: [], pagination: { currentPage: 1, totalPages: 1, totalResults: 0 } };
       }
 
       const data = await response.json();
 
       // Log the response for debugging
-      console.log('Neon listDonations response:', JSON.stringify(data).substring(0, 1000));
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Neon listDonations response preview:', JSON.stringify(data).substring(0, 200));
+      }
 
       if (data.listDonationsResponse?.operationResult !== 'SUCCESS') {
         console.error('Neon listDonations failed:', JSON.stringify(data.listDonationsResponse));

@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { requireAuth } from '@/lib/auth-server';
+import { createTaskSchema, updateTaskSchema } from '@/lib/validation/schemas';
+import { handleApiError } from '@/lib/api-error';
 
 // GET /api/tasks - Fetch tasks with optional filters
 export async function GET(request: NextRequest) {
   try {
+    // Require authentication
+    await requireAuth();
+
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
@@ -82,20 +88,25 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data });
   } catch (error) {
-    console.error('Error in tasks GET:', error);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error);
   }
 }
 
 // POST /api/tasks - Create a new task
 export async function POST(request: NextRequest) {
   try {
+    // Require authentication
+    await requireAuth();
+
     const supabase = getSupabaseAdmin();
     const body = await request.json();
 
-    const { data, error } = await supabase
+    // Validate input
+    const validatedData = createTaskSchema.parse(body);
+
+    const { data, error } = await (supabase as any)
       .from('tasks')
-      .insert(body)
+      .insert(validatedData)
       .select(`
         *,
         created_by:users!tasks_created_by_id_fkey(id, first_name, last_name, email),
@@ -116,23 +127,29 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data });
   } catch (error) {
-    console.error('Error in tasks POST:', error);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error);
   }
 }
 
 // PATCH /api/tasks - Update a task
 export async function PATCH(request: NextRequest) {
   try {
+    // Require authentication
+    await requireAuth();
+
     const supabase = getSupabaseAdmin();
     const body = await request.json();
-    const { id, ...updateData } = body;
+    const { id, ...updateFields } = body;
 
     if (!id) {
       return NextResponse.json({ success: false, error: 'Task ID is required' }, { status: 400 });
     }
 
+    // Validate input
+    const validatedData = updateTaskSchema.parse(updateFields);
+
     // If marking as done, set completed_at
+    const updateData: any = { ...validatedData };
     if (updateData.status === 'done' && !updateData.completed_at) {
       updateData.completed_at = new Date().toISOString();
     }
@@ -161,14 +178,16 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ success: true, data });
   } catch (error) {
-    console.error('Error in tasks PATCH:', error);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error);
   }
 }
 
 // DELETE /api/tasks - Delete a task
 export async function DELETE(request: NextRequest) {
   try {
+    // Require authentication
+    await requireAuth();
+
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
@@ -189,7 +208,6 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error in tasks DELETE:', error);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error);
   }
 }

@@ -14,6 +14,8 @@
  * - Receipt management
  */
 
+import { fetchWithTimeout, sanitizeErrorMessage } from '../api-utils';
+
 // ============================================
 // Types for Ramp API responses
 // ============================================
@@ -157,18 +159,18 @@ class RampClient {
     // Request new token
     const credentials = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
 
-    const response = await fetch(`${this.baseUrl}/token`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/token`, {
       method: 'POST',
       headers: {
         'Authorization': `Basic ${credentials}`,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: 'grant_type=client_credentials&scope=cards:read%20transactions:read%20users:read%20reimbursements:read',
-    });
+    }, 30000);
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Ramp Auth Error: ${response.status} - ${errorText}`);
+      throw new Error(`Ramp Auth Error: ${response.status} - ${sanitizeErrorMessage(errorText)}`);
     }
 
     const data = await response.json();
@@ -186,18 +188,18 @@ class RampClient {
     const token = await this.getAccessToken();
     const url = `${this.baseUrl}${endpoint}`;
 
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       ...options,
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
         ...options.headers,
       },
-    });
+    }, 30000);
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Ramp API Error: ${response.status} - ${errorText}`);
+      throw new Error(`Ramp API Error: ${response.status} - ${sanitizeErrorMessage(errorText)}`);
     }
 
     return response.json();

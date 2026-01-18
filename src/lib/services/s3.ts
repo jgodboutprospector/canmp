@@ -14,6 +14,7 @@ const s3Client = new S3Client({
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
   },
+  maxAttempts: 3,
 });
 
 const BUCKET_NAME = process.env.AWS_S3_BUCKET || 'canmp-donations';
@@ -47,12 +48,11 @@ export function generateDonationPhotoKey(
 
 /**
  * Get the public URL for an S3 object
+ * Now uses signed URLs for secure access
  */
-export function getPublicUrl(key: string): string {
-  if (CDN_URL) {
-    return `${CDN_URL}/${key}`;
-  }
-  return `https://${BUCKET_NAME}.s3.amazonaws.com/${key}`;
+export async function getPublicUrl(key: string): Promise<string> {
+  // Use signed URLs for secure access
+  return await getSignedDownloadUrl(key, 3600); // 1 hour expiry
 }
 
 /**
@@ -71,15 +71,13 @@ export async function uploadToS3(
       Body: file,
       ContentType: contentType,
       Metadata: metadata,
-      // Make publicly readable
-      ACL: 'public-read',
     });
 
     await s3Client.send(command);
 
     return {
       success: true,
-      url: getPublicUrl(key),
+      url: await getPublicUrl(key),
       key,
     };
   } catch (error) {
@@ -126,12 +124,12 @@ export async function deleteFromS3(key: string): Promise<boolean> {
 }
 
 /**
- * Get a signed URL for temporary access (useful for private buckets)
+ * Get a signed URL for temporary access
  */
 export async function getSignedDownloadUrl(
   key: string,
   expiresIn: number = 3600
-): Promise<string | null> {
+): Promise<string> {
   try {
     const command = new GetObjectCommand({
       Bucket: BUCKET_NAME,
@@ -142,7 +140,7 @@ export async function getSignedDownloadUrl(
     return signedUrl;
   } catch (error) {
     console.error('Error getting signed URL:', error);
-    return null;
+    throw new Error('Failed to generate signed URL');
   }
 }
 
@@ -177,7 +175,7 @@ export async function getFileInfo(key: string): Promise<S3FileInfo | null> {
 
     return {
       key,
-      url: getPublicUrl(key),
+      url: await getPublicUrl(key),
       size: response.ContentLength,
       contentType: response.ContentType,
     };

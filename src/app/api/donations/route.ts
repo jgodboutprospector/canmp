@@ -1,15 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { requireAuth } from '@/lib/auth-server';
+import { createDonationSchema, searchParamSchema } from '@/lib/validation/schemas';
+import { handleApiError } from '@/lib/api-error';
 
 // GET /api/donations - Fetch donations with optional filters
 export async function GET(request: NextRequest) {
   try {
+    // Require authentication
+    await requireAuth();
+
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const category = searchParams.get('category');
     const status = searchParams.get('status');
-    const search = searchParams.get('search');
+    const rawSearch = searchParams.get('search');
     const include_inactive = searchParams.get('include_inactive') === 'true';
+
+    // Sanitize search parameter
+    const search = rawSearch ? searchParamSchema.parse(rawSearch) : null;
 
     let query = supabase
       .from('donation_items')
@@ -45,23 +54,28 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data });
   } catch (error) {
-    console.error('Error in donations GET:', error);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error);
   }
 }
 
 // POST /api/donations - Create a new donation item
 export async function POST(request: NextRequest) {
   try {
+    // Require authentication
+    await requireAuth();
+
     const supabase = getSupabaseAdmin();
     const body = await request.json();
 
-    const { data, error } = await supabase
+    // Validate input
+    const validatedData = createDonationSchema.parse(body);
+
+    const { data, error } = await (supabase as any)
       .from('donation_items')
       .insert({
-        ...body,
-        status: body.status || 'available',
-        donated_date: body.donated_date || new Date().toISOString().split('T')[0],
+        ...validatedData,
+        status: validatedData.status || 'available',
+        donated_date: validatedData.donated_date || new Date().toISOString().split('T')[0],
       })
       .select(`
         *,
@@ -77,14 +91,16 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data });
   } catch (error) {
-    console.error('Error in donations POST:', error);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error);
   }
 }
 
 // PATCH /api/donations - Update a donation item
 export async function PATCH(request: NextRequest) {
   try {
+    // Require authentication
+    await requireAuth();
+
     const supabase = getSupabaseAdmin();
     const body = await request.json();
     const { id, ...updateData } = body;
@@ -111,14 +127,16 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ success: true, data });
   } catch (error) {
-    console.error('Error in donations PATCH:', error);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error);
   }
 }
 
 // DELETE /api/donations - Soft delete a donation item
 export async function DELETE(request: NextRequest) {
   try {
+    // Require authentication
+    await requireAuth();
+
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
@@ -140,7 +158,6 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error in donations DELETE:', error);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error);
   }
 }

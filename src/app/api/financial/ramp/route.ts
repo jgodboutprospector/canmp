@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { rampClient, RampCard, RampTransaction, RampReimbursement } from '@/lib/services/ramp';
+import { requireRole } from '@/lib/auth-server';
+import { handleApiError } from '@/lib/api-error';
 
 // Demo data - fallback when API is not configured or fails
 const demoCards = [
@@ -69,12 +71,14 @@ function transformReimbursement(reimb: RampReimbursement) {
 }
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const dataType = searchParams.get('type') || 'cards';
-
-  const hasRampCredentials = isRampConfigured();
-
   try {
+    // Require admin, coordinator, or board_member role
+    await requireRole(['admin', 'coordinator', 'board_member']);
+
+    const { searchParams } = new URL(request.url);
+    const dataType = searchParams.get('type') || 'cards';
+
+    const hasRampCredentials = isRampConfigured();
     // Try to fetch from real API if configured
     if (hasRampCredentials) {
       try {
@@ -175,29 +179,27 @@ export async function GET(request: Request) {
         );
     }
   } catch (error) {
-    console.error('Ramp API error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch data' },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
 export async function POST(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const action = searchParams.get('action');
-
-  const hasRampCredentials = isRampConfigured();
-
-  if (!hasRampCredentials) {
-    return NextResponse.json({
-      success: false,
-      error: 'Ramp API not configured. Please set RAMP_CLIENT_ID and RAMP_CLIENT_SECRET.',
-      isDemo: true,
-    }, { status: 400 });
-  }
-
   try {
+    // Require admin, coordinator, or board_member role
+    await requireRole(['admin', 'coordinator', 'board_member']);
+
+    const { searchParams } = new URL(request.url);
+    const action = searchParams.get('action');
+
+    const hasRampCredentials = isRampConfigured();
+
+    if (!hasRampCredentials) {
+      return NextResponse.json({
+        success: false,
+        error: 'Ramp API not configured. Please set RAMP_CLIENT_ID and RAMP_CLIENT_SECRET.',
+        isDemo: true,
+      }, { status: 400 });
+    }
     const body = await request.json();
 
     switch (action) {
@@ -256,10 +258,6 @@ export async function POST(request: Request) {
         );
     }
   } catch (error) {
-    console.error('Ramp API error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to process request' },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

@@ -91,7 +91,7 @@ export default function Sidebar() {
           <Heart className="w-6 h-6 text-white" />
         </div>
         <div>
-          <h1 className="font-bold text-canmp-green-600 text-lg leading-tight" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+          <h1 className="font-bold text-canmp-green-600 text-lg leading-tight">
             CANMP
           </h1>
           <p className="text-xs text-gray-500">Case Management</p>
@@ -99,7 +99,7 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto" role="navigation" aria-label="Main navigation">
         {navigation.map((item) => {
           const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
           return (
@@ -112,6 +112,7 @@ export default function Sidebar() {
                   ? 'bg-canmp-green-50 text-canmp-green-700'
                   : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
               )}
+              aria-current={isActive ? 'page' : undefined}
             >
               <item.icon className="w-5 h-5" />
               {item.name}
@@ -139,6 +140,7 @@ export default function Sidebar() {
                       ? 'bg-canmp-green-50 text-canmp-green-700'
                       : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                   )}
+                  aria-current={isActive ? 'page' : undefined}
                 >
                   <item.icon className="w-5 h-5" />
                   {item.name}
@@ -163,6 +165,7 @@ export default function Sidebar() {
                   ? 'bg-canmp-green-50 text-canmp-green-700'
                   : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
               )}
+              aria-current={isActive ? 'page' : undefined}
             >
               <item.icon className="w-5 h-5" />
               {item.name}

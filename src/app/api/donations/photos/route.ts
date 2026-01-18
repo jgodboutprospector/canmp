@@ -6,10 +6,15 @@ import {
   isValidImageType,
   getMaxFileSize,
 } from '@/lib/services/s3';
+import { requireAuth } from '@/lib/auth-server';
+import { handleApiError } from '@/lib/api-error';
 
 // GET /api/donations/photos - Get photos for a donation item
 export async function GET(request: NextRequest) {
   try {
+    // Require authentication
+    await requireAuth();
+
     const supabase = getSupabaseAdmin() as any;
     const { searchParams } = new URL(request.url);
     const donationItemId = searchParams.get('donation_item_id');
@@ -34,14 +39,16 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data });
   } catch (error) {
-    console.error('Error in photos GET:', error);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error);
   }
 }
 
 // POST /api/donations/photos - Upload a photo
 export async function POST(request: NextRequest) {
   try {
+    // Require authentication
+    await requireAuth();
+
     const supabase = getSupabaseAdmin() as any;
     const formData = await request.formData();
     const file = formData.get('file') as File;
@@ -145,14 +152,16 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data });
   } catch (error) {
-    console.error('Error in photos POST:', error);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error);
   }
 }
 
 // DELETE /api/donations/photos - Delete a photo
 export async function DELETE(request: NextRequest) {
   try {
+    // Require authentication
+    await requireAuth();
+
     const supabase = getSupabaseAdmin() as any;
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
@@ -226,14 +235,16 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error in photos DELETE:', error);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error);
   }
 }
 
 // PATCH /api/donations/photos - Update photo (set primary, reorder)
 export async function PATCH(request: NextRequest) {
   try {
+    // Require authentication
+    await requireAuth();
+
     const supabase = getSupabaseAdmin() as any;
     const body = await request.json();
     const { id, is_primary, sort_order } = body;
@@ -291,7 +302,6 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ success: true, data });
   } catch (error) {
-    console.error('Error in photos PATCH:', error);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error);
   }
 }

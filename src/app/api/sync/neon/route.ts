@@ -6,18 +6,23 @@ import {
   syncEventsFromNeon,
   syncVolunteerOpportunitiesFromNeon,
 } from '@/lib/services/neoncrm';
+import { secureCompare } from '@/lib/auth-server';
+import { handleApiError } from '@/lib/api-error';
 
 export async function POST(request: Request) {
   try {
-    // Verify API key for security
+    // Verify API key for security using timing-safe comparison
     const authHeader = request.headers.get('authorization');
     const expectedKey = process.env.SYNC_API_KEY;
 
-    if (expectedKey && authHeader !== `Bearer ${expectedKey}`) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    if (expectedKey) {
+      const providedKey = authHeader?.replace('Bearer ', '');
+      if (!secureCompare(providedKey, expectedKey)) {
+        return NextResponse.json(
+          { error: 'Unauthorized' },
+          { status: 401 }
+        );
+      }
     }
 
     // Get sync type from request body
@@ -51,14 +56,7 @@ export async function POST(request: Request) {
       result,
     });
   } catch (error) {
-    console.error('Neon CRM sync error:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 

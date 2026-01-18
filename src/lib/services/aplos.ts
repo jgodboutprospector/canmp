@@ -16,6 +16,7 @@
  */
 
 import * as crypto from 'crypto';
+import { fetchWithTimeout, sanitizeErrorMessage } from '../api-utils';
 
 // ============================================
 // Types for Aplos API responses
@@ -191,16 +192,16 @@ class AplosClient {
     // The clientId is part of the URL path, not a query parameter
     const authUrl = `${this.baseUrl}/auth/${this.clientId}`;
 
-    const response = await fetch(authUrl, {
+    const response = await fetchWithTimeout(authUrl, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
       },
-    });
+    }, 30000);
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Aplos Auth Error: ${response.status} - ${errorText}`);
+      throw new Error(`Aplos Auth Error: ${response.status} - ${sanitizeErrorMessage(errorText)}`);
     }
 
     const data = await response.json();
@@ -229,7 +230,7 @@ class AplosClient {
     const token = await this.getAccessToken();
     const url = `${this.baseUrl}${endpoint}`;
 
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       ...options,
       headers: {
         // Aplos uses "Bearer:" (with colon) per their documentation
@@ -237,11 +238,11 @@ class AplosClient {
         'Content-Type': 'application/json',
         ...options.headers,
       },
-    });
+    }, 30000);
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Aplos API Error: ${response.status} - ${errorText}`);
+      throw new Error(`Aplos API Error: ${response.status} - ${sanitizeErrorMessage(errorText)}`);
     }
 
     return response.json();

@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { X } from 'lucide-react';
 import { CreateTaskInput, TaskStatus, TaskPriority, useTaskOptions } from '@/lib/hooks/useTasksData';
+import { Modal } from '@/components/ui/Modal';
 import { cn } from '@/lib/utils';
 
 interface AddTaskModalProps {
@@ -60,18 +60,7 @@ export default function AddTaskModal({ onClose, onCreate, defaultDueDate, defaul
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Create New Task</h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
-        </div>
+    <Modal isOpen={true} onClose={onClose} title="Create New Task" size="xl">
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
@@ -315,7 +304,6 @@ export default function AddTaskModal({ onClose, onCreate, defaultDueDate, defaul
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 }

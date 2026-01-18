@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { migrateImageToS3 } from '@/lib/services/s3';
+import { secureCompare } from '@/lib/auth-server';
+import { importDonationsSchema } from '@/lib/validation/schemas';
+import { handleApiError } from '@/lib/api-error';
 
 // Map Airtable categories to our enum values
 const CATEGORY_MAP: Record<string, string> = {
@@ -64,21 +67,17 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
 
-    // Verify API key for security
+    // Verify API key for security using timing-safe comparison
     const apiKey = request.headers.get('x-api-key');
-    if (apiKey !== process.env.SYNC_API_KEY) {
+    if (!secureCompare(apiKey, process.env.SYNC_API_KEY)) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
     const body = await request.json();
-    const { records, migratePhotos = false }: { records: AirtableRecord[]; migratePhotos?: boolean } = body;
 
-    if (!records || !Array.isArray(records)) {
-      return NextResponse.json(
-        { success: false, error: 'records array is required' },
-        { status: 400 }
-      );
-    }
+    // Validate input
+    const { records, migratePhotos = false } = importDonationsSchema.parse(body);
+
 
     const results = {
       total: records.length,
@@ -217,7 +216,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, results });
   } catch (error) {
-    console.error('Error in import POST:', error);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error);
   }
 }

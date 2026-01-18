@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { neonClient, NeonDonor, NeonDonation, NeonCampaign, NeonMembership } from '@/lib/services/neon';
+import { requireRole } from '@/lib/auth-server';
+import { handleApiError } from '@/lib/api-error';
 
 // Demo data - fallback when API is not configured or fails
 const demoDonors: NeonDonor[] = [
@@ -53,12 +55,14 @@ function transformDonor(donor: NeonDonor) {
 }
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const dataType = searchParams.get('type') || 'donations';
-
-  const hasNeonCredentials = isNeonConfigured();
-
   try {
+    // Require admin, coordinator, or board_member role
+    await requireRole(['admin', 'coordinator', 'board_member']);
+
+    const { searchParams } = new URL(request.url);
+    const dataType = searchParams.get('type') || 'donations';
+
+    const hasNeonCredentials = isNeonConfigured();
     // Try to fetch from real API if configured
     if (hasNeonCredentials) {
       try {
@@ -178,10 +182,6 @@ export async function GET(request: Request) {
         );
     }
   } catch (error) {
-    console.error('Neon API error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch data' },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

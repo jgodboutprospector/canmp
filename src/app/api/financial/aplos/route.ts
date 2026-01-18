@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { aplosClient } from '@/lib/services/aplos';
+import { requireRole } from '@/lib/auth-server';
+import { handleApiError } from '@/lib/api-error';
 
 // Demo data - fallback when API is not configured or fails
 const demoFunds = [
@@ -56,14 +58,16 @@ function isAplosConfigured(): boolean {
 }
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const dataType = searchParams.get('type') || 'funds';
-  const fundId = searchParams.get('fund_id');
-  const accountNumber = searchParams.get('account_number');
-
-  const hasAplosCredentials = isAplosConfigured();
-
   try {
+    // Require admin, coordinator, or board_member role
+    await requireRole(['admin', 'coordinator', 'board_member']);
+
+    const { searchParams } = new URL(request.url);
+    const dataType = searchParams.get('type') || 'funds';
+    const fundId = searchParams.get('fund_id');
+    const accountNumber = searchParams.get('account_number');
+
+    const hasAplosCredentials = isAplosConfigured();
     // Try to fetch from real API if configured
     if (hasAplosCredentials) {
       try {
@@ -246,10 +250,6 @@ export async function GET(request: Request) {
         );
     }
   } catch (error) {
-    console.error('Aplos API error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch data' },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

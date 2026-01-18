@@ -17,6 +17,7 @@
  */
 
 import { supabase as supabaseClient } from '@/lib/supabase';
+import { fetchWithTimeout, sanitizeErrorMessage } from '../api-utils';
 
 // Use untyped supabase client for neon tables not in Database interface
 const supabase = supabaseClient as any;
@@ -150,7 +151,7 @@ class NeonCRMClient {
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
 
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       ...options,
       headers: {
         'Authorization': this.getAuthHeader(),
@@ -158,11 +159,11 @@ class NeonCRMClient {
         'NEON-API-VERSION': '2.11',
         ...options.headers,
       },
-    });
+    }, 30000);
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Neon CRM API Error: ${response.status} - ${errorText}`);
+      throw new Error(`Neon CRM API Error: ${response.status} - ${sanitizeErrorMessage(errorText)}`);
     }
 
     return response.json();

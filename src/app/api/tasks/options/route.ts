@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { requireAuth } from '@/lib/auth-server';
+import { handleApiError } from '@/lib/api-error';
 
 // GET /api/tasks/options - Fetch dropdown options for task forms
 export async function GET() {
   try {
+    // Require authentication
+    await requireAuth();
+
     const supabase = getSupabaseAdmin();
     const [usersResult, beneficiariesResult, volunteersResult, classesResult, eventsResult, propertiesResult] = await Promise.all([
       supabase.from('users').select('id, first_name, last_name, email').eq('is_active', true).order('first_name'),
@@ -26,7 +31,6 @@ export async function GET() {
       },
     });
   } catch (error) {
-    console.error('Error fetching task options:', error);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error);
   }
 }
