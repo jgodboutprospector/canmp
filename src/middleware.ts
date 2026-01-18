@@ -35,25 +35,8 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Optional: Protect certain routes
-  const isApiRoute = request.nextUrl.pathname.startsWith('/api');
-  const isAuthRoute = request.nextUrl.pathname.startsWith('/api/auth');
-  const isPublicRoute = request.nextUrl.pathname === '/login' ||
-                        request.nextUrl.pathname === '/' ||
-                        request.nextUrl.pathname.startsWith('/_next');
-
-  // Don't require auth for public routes, login page, or auth API routes
-  if (isPublicRoute || isAuthRoute) {
-    return supabaseResponse;
-  }
-
-  // For protected routes, if no user, redirect to login (except for API routes)
-  if (!user && !isApiRoute && !isPublicRoute) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    return NextResponse.redirect(url);
-  }
-
+  // Just return the response - let the client-side AuthProvider handle redirects
+  // This middleware only refreshes the session tokens
   return supabaseResponse;
 }
 
