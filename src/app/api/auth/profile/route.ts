@@ -1,16 +1,44 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { getServerSession, getUserProfile } from '@/lib/auth-server';
 
 // GET /api/auth/profile - Get current user's profile
-export async function GET() {
+// Supports both cookie-based auth and Authorization header (for immediate post-login)
+export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession();
+    let userId: string | null = null;
 
-    if (!session?.user) {
+    // First, try to get user from Authorization header (for immediate post-login)
+    const authHeader = request.headers.get('authorization');
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+
+      // Verify the token with Supabase
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
+
+      const { data: { user }, error } = await supabase.auth.getUser(token);
+
+      if (!error && user) {
+        userId = user.id;
+      }
+    }
+
+    // If no Authorization header or it failed, try cookie-based session
+    if (!userId) {
+      const session = await getServerSession();
+      if (session?.user) {
+        userId = session.user.id;
+      }
+    }
+
+    if (!userId) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const profile = await getUserProfile(session.user.id);
+    const profile = await getUserProfile(userId);
 
     if (!profile) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });

@@ -74,9 +74,19 @@ export async function getUserProfile(authUserId: string): Promise<UserProfile | 
   console.log('getUserProfile called with authUserId:', authUserId);
 
   try {
+    // Get the current session to pass the access token
+    // This is needed because cookies may not be set yet immediately after login
+    const { data: { session } } = await supabase.auth.getSession();
+
+    const headers: HeadersInit = { 'Content-Type': 'application/json' };
+    if (session?.access_token) {
+      headers['Authorization'] = `Bearer ${session.access_token}`;
+    }
+
     const response = await fetch('/api/auth/profile', {
       method: 'GET',
       credentials: 'include',
+      headers,
     });
 
     if (!response.ok) {
