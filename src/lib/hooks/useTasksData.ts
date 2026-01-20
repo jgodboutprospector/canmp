@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { authFetch } from '@/lib/api-client';
 
 export type TaskStatus = 'backlog' | 'todo' | 'in_progress' | 'review' | 'done';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
@@ -37,6 +38,14 @@ export interface Task {
   property?: { id: string; name: string } | null;
 }
 
+export interface PaginationInfo {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasMore: boolean;
+}
+
 export interface TaskFilters {
   status?: TaskStatus;
   assignee_id?: string;
@@ -48,6 +57,8 @@ export interface TaskFilters {
   from_date?: string;
   to_date?: string;
   include_archived?: boolean;
+  page?: number;
+  limit?: number;
 }
 
 export interface CreateTaskInput {
@@ -90,6 +101,7 @@ export function useTasks(filters?: TaskFilters) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pagination, setPagination] = useState<PaginationInfo | null>(null);
 
   const fetchTasks = useCallback(async () => {
     setLoading(true);
@@ -107,12 +119,17 @@ export function useTasks(filters?: TaskFilters) {
       if (filters?.from_date) params.append('from_date', filters.from_date);
       if (filters?.to_date) params.append('to_date', filters.to_date);
       if (filters?.include_archived) params.append('include_archived', 'true');
+      if (filters?.page) params.append('page', String(filters.page));
+      if (filters?.limit) params.append('limit', String(filters.limit));
 
-      const response = await fetch(`/api/tasks?${params}`);
+      const response = await authFetch(`/api/tasks?${params}`);
       const result = await response.json();
 
       if (result.success) {
         setTasks(result.data || []);
+        if (result.pagination) {
+          setPagination(result.pagination);
+        }
       } else {
         setError(result.error || 'Failed to fetch tasks');
       }
@@ -124,7 +141,8 @@ export function useTasks(filters?: TaskFilters) {
     }
   }, [filters?.status, filters?.assignee_id, filters?.beneficiary_id, filters?.volunteer_id,
       filters?.class_section_id, filters?.event_id, filters?.property_id,
-      filters?.from_date, filters?.to_date, filters?.include_archived]);
+      filters?.from_date, filters?.to_date, filters?.include_archived,
+      filters?.page, filters?.limit]);
 
   useEffect(() => {
     fetchTasks();
@@ -132,7 +150,7 @@ export function useTasks(filters?: TaskFilters) {
 
   const createTask = useCallback(async (input: CreateTaskInput): Promise<Task | null> => {
     try {
-      const response = await fetch('/api/tasks', {
+      const response = await authFetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -155,7 +173,7 @@ export function useTasks(filters?: TaskFilters) {
 
   const updateTask = useCallback(async (input: UpdateTaskInput): Promise<Task | null> => {
     try {
-      const response = await fetch('/api/tasks', {
+      const response = await authFetch('/api/tasks', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -178,7 +196,7 @@ export function useTasks(filters?: TaskFilters) {
 
   const deleteTask = useCallback(async (id: string): Promise<boolean> => {
     try {
-      const response = await fetch(`/api/tasks?id=${id}`, {
+      const response = await authFetch(`/api/tasks?id=${id}`, {
         method: 'DELETE',
       });
       const result = await response.json();
@@ -233,6 +251,7 @@ export function useTasks(filters?: TaskFilters) {
     tasksByStatus,
     loading,
     error,
+    pagination,
     refresh: fetchTasks,
     createTask,
     updateTask,
@@ -256,7 +275,7 @@ export function useTaskOptions() {
   useEffect(() => {
     const fetchOptions = async () => {
       try {
-        const response = await fetch('/api/tasks/options');
+        const response = await authFetch('/api/tasks/options');
         const result = await response.json();
 
         if (result.success) {

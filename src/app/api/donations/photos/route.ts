@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import {
   uploadDonationPhoto,
@@ -6,24 +6,37 @@ import {
   isValidImageType,
   getMaxFileSize,
 } from '@/lib/services/s3';
-import { requireAuth } from '@/lib/auth-server';
-import { handleApiError } from '@/lib/api-error';
+import { requireAuthFromRequest } from '@/lib/auth-server';
+import {
+  successResponse,
+  errorResponse,
+  handleApiError,
+  checkRateLimit,
+  getRateLimitIdentifier,
+  rateLimitResponse,
+  validateImageFile,
+  createAuditLog,
+} from '@/lib/api-server-utils';
 
 // GET /api/donations/photos - Get photos for a donation item
 export async function GET(request: NextRequest) {
   try {
-    // Require authentication
-    await requireAuth();
+    // Require authentication (supports both Bearer token and cookie-based auth)
+    const { profile } = await requireAuthFromRequest(request);
 
-    const supabase = getSupabaseAdmin() as any;
+    // Rate limiting
+    const rateLimitId = getRateLimitIdentifier(request, profile.id);
+    const rateLimit = checkRateLimit(rateLimitId, { windowMs: 60000, maxRequests: 100 });
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit.resetAt);
+    }
+
+    const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const donationItemId = searchParams.get('donation_item_id');
 
     if (!donationItemId) {
-      return NextResponse.json(
-        { success: false, error: 'donation_item_id is required' },
-        { status: 400 }
-      );
+      return errorResponse('donation_item_id is required', 400, 'MISSING_PARAM');
     }
 
     const { data, error } = await supabase
@@ -34,10 +47,10 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('Error fetching photos:', error);
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return errorResponse(error.message, 500);
     }
 
-    return NextResponse.json({ success: true, data });
+    return successResponse(data);
   } catch (error) {
     return handleApiError(error);
   }
@@ -46,36 +59,39 @@ export async function GET(request: NextRequest) {
 // POST /api/donations/photos - Upload a photo
 export async function POST(request: NextRequest) {
   try {
-    // Require authentication
-    await requireAuth();
+    // Require authentication (supports both Bearer token and cookie-based auth)
+    const { profile } = await requireAuthFromRequest(request);
 
-    const supabase = getSupabaseAdmin() as any;
+    // Rate limiting (stricter for uploads)
+    const rateLimitId = getRateLimitIdentifier(request, profile.id);
+    const rateLimit = checkRateLimit(`upload:${rateLimitId}`, { windowMs: 60000, maxRequests: 20 });
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit.resetAt);
+    }
+
+    const supabase = getSupabaseAdmin();
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const donationItemId = formData.get('donation_item_id') as string;
     const isPrimary = formData.get('is_primary') === 'true';
 
     if (!file || !donationItemId) {
-      return NextResponse.json(
-        { success: false, error: 'file and donation_item_id are required' },
-        { status: 400 }
-      );
+      return errorResponse('file and donation_item_id are required', 400, 'MISSING_PARAM');
     }
 
-    // Validate file type
+    // Enhanced file validation
+    const validation = validateImageFile(file, 10);
+    if (!validation.valid) {
+      return errorResponse(validation.error!, 400, 'INVALID_FILE');
+    }
+
+    // Additional validation using existing helpers
     if (!isValidImageType(file.type)) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid file type. Only images are allowed.' },
-        { status: 400 }
-      );
+      return errorResponse('Invalid file type. Only images are allowed.', 400, 'INVALID_FILE_TYPE');
     }
 
-    // Validate file size
     if (file.size > getMaxFileSize()) {
-      return NextResponse.json(
-        { success: false, error: 'File size exceeds 10MB limit' },
-        { status: 400 }
-      );
+      return errorResponse('File size exceeds 10MB limit', 400, 'FILE_TOO_LARGE');
     }
 
     // Convert File to Buffer
@@ -91,22 +107,19 @@ export async function POST(request: NextRequest) {
     );
 
     if (!uploadResult.success) {
-      return NextResponse.json(
-        { success: false, error: uploadResult.error },
-        { status: 500 }
-      );
+      return errorResponse(uploadResult.error || 'Upload failed', 500, 'UPLOAD_FAILED');
     }
 
     // If this is the primary photo, unset other primaries
     if (isPrimary) {
-      await supabase
+      await (supabase as any)
         .from('donation_photos')
         .update({ is_primary: false })
         .eq('donation_item_id', donationItemId);
     }
 
     // Get current max sort order
-    const { data: existingPhotos } = await supabase
+    const { data: existingPhotos } = await (supabase as any)
       .from('donation_photos')
       .select('sort_order')
       .eq('donation_item_id', donationItemId)
@@ -118,7 +131,7 @@ export async function POST(request: NextRequest) {
       : 0;
 
     // Save to database
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('donation_photos')
       .insert({
         donation_item_id: donationItemId,
@@ -139,18 +152,27 @@ export async function POST(request: NextRequest) {
         await deleteFromS3(uploadResult.key);
       }
       console.error('Error saving photo to database:', error);
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return errorResponse(error.message, 500);
     }
 
     // Update the donation item's image_path if this is the primary or first photo
     if (isPrimary || nextSortOrder === 0) {
-      await supabase
+      await (supabase as any)
         .from('donation_items')
         .update({ image_path: uploadResult.url })
         .eq('id', donationItemId);
     }
 
-    return NextResponse.json({ success: true, data });
+    // Create audit log
+    await createAuditLog(supabase, {
+      userId: profile.id,
+      action: 'create',
+      entityType: 'donation_photo',
+      entityId: data.id,
+      newValue: { donation_item_id: donationItemId, filename: file.name },
+    });
+
+    return successResponse(data, undefined, 201);
   } catch (error) {
     return handleApiError(error);
   }
@@ -159,32 +181,33 @@ export async function POST(request: NextRequest) {
 // DELETE /api/donations/photos - Delete a photo
 export async function DELETE(request: NextRequest) {
   try {
-    // Require authentication
-    await requireAuth();
+    // Require authentication (supports both Bearer token and cookie-based auth)
+    const { profile } = await requireAuthFromRequest(request);
 
-    const supabase = getSupabaseAdmin() as any;
+    // Rate limiting
+    const rateLimitId = getRateLimitIdentifier(request, profile.id);
+    const rateLimit = checkRateLimit(`write:${rateLimitId}`, { windowMs: 60000, maxRequests: 30 });
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit.resetAt);
+    }
+
+    const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
     if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'Photo ID is required' },
-        { status: 400 }
-      );
+      return errorResponse('Photo ID is required', 400, 'MISSING_ID');
     }
 
     // Get the photo record first
-    const { data: photo, error: fetchError } = await supabase
+    const { data: photo, error: fetchError } = await (supabase as any)
       .from('donation_photos')
       .select('*')
       .eq('id', id)
       .single();
 
     if (fetchError || !photo) {
-      return NextResponse.json(
-        { success: false, error: 'Photo not found' },
-        { status: 404 }
-      );
+      return errorResponse('Photo not found', 404, 'NOT_FOUND');
     }
 
     // Delete from S3
@@ -194,19 +217,19 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Delete from database
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('donation_photos')
       .delete()
       .eq('id', id);
 
     if (error) {
       console.error('Error deleting photo:', error);
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return errorResponse(error.message, 500);
     }
 
     // If this was the primary photo, set another as primary
     if (photo.is_primary) {
-      const { data: nextPhoto } = await supabase
+      const { data: nextPhoto } = await (supabase as any)
         .from('donation_photos')
         .select('id, s3_url')
         .eq('donation_item_id', photo.donation_item_id)
@@ -215,25 +238,34 @@ export async function DELETE(request: NextRequest) {
         .single();
 
       if (nextPhoto) {
-        await supabase
+        await (supabase as any)
           .from('donation_photos')
           .update({ is_primary: true })
           .eq('id', nextPhoto.id);
 
-        await supabase
+        await (supabase as any)
           .from('donation_items')
           .update({ image_path: nextPhoto.s3_url })
           .eq('id', photo.donation_item_id);
       } else {
         // No more photos, clear the image_path
-        await supabase
+        await (supabase as any)
           .from('donation_items')
           .update({ image_path: null })
           .eq('id', photo.donation_item_id);
       }
     }
 
-    return NextResponse.json({ success: true });
+    // Create audit log
+    await createAuditLog(supabase, {
+      userId: profile.id,
+      action: 'delete',
+      entityType: 'donation_photo',
+      entityId: id,
+      oldValue: photo,
+    });
+
+    return successResponse({ deleted: true });
   } catch (error) {
     return handleApiError(error);
   }
@@ -242,43 +274,44 @@ export async function DELETE(request: NextRequest) {
 // PATCH /api/donations/photos - Update photo (set primary, reorder)
 export async function PATCH(request: NextRequest) {
   try {
-    // Require authentication
-    await requireAuth();
+    // Require authentication (supports both Bearer token and cookie-based auth)
+    const { profile } = await requireAuthFromRequest(request);
 
-    const supabase = getSupabaseAdmin() as any;
+    // Rate limiting
+    const rateLimitId = getRateLimitIdentifier(request, profile.id);
+    const rateLimit = checkRateLimit(`write:${rateLimitId}`, { windowMs: 60000, maxRequests: 30 });
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit.resetAt);
+    }
+
+    const supabase = getSupabaseAdmin();
     const body = await request.json();
     const { id, is_primary, sort_order } = body;
 
     if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'Photo ID is required' },
-        { status: 400 }
-      );
+      return errorResponse('Photo ID is required', 400, 'MISSING_ID');
     }
 
     // Get the photo to find the donation_item_id
-    const { data: photo, error: fetchError } = await supabase
+    const { data: photo, error: fetchError } = await (supabase as any)
       .from('donation_photos')
       .select('donation_item_id, s3_url')
       .eq('id', id)
       .single();
 
     if (fetchError || !photo) {
-      return NextResponse.json(
-        { success: false, error: 'Photo not found' },
-        { status: 404 }
-      );
+      return errorResponse('Photo not found', 404, 'NOT_FOUND');
     }
 
     // If setting as primary, unset others first
     if (is_primary) {
-      await supabase
+      await (supabase as any)
         .from('donation_photos')
         .update({ is_primary: false })
         .eq('donation_item_id', photo.donation_item_id);
 
       // Update the donation item's image_path
-      await supabase
+      await (supabase as any)
         .from('donation_items')
         .update({ image_path: photo.s3_url })
         .eq('id', photo.donation_item_id);
@@ -288,7 +321,7 @@ export async function PATCH(request: NextRequest) {
     if (is_primary !== undefined) updateData.is_primary = is_primary;
     if (sort_order !== undefined) updateData.sort_order = sort_order;
 
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('donation_photos')
       .update(updateData)
       .eq('id', id)
@@ -297,10 +330,19 @@ export async function PATCH(request: NextRequest) {
 
     if (error) {
       console.error('Error updating photo:', error);
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return errorResponse(error.message, 500);
     }
 
-    return NextResponse.json({ success: true, data });
+    // Create audit log
+    await createAuditLog(supabase, {
+      userId: profile.id,
+      action: 'update',
+      entityType: 'donation_photo',
+      entityId: id,
+      newValue: updateData,
+    });
+
+    return successResponse(data);
   } catch (error) {
     return handleApiError(error);
   }

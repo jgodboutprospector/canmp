@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { DonationCategory, DonationStatus, DonationPhoto } from '@/types/database';
+import { authFetch } from '@/lib/api-client';
 
 export interface DonationItem {
   id: string;
@@ -23,11 +24,21 @@ export interface DonationItem {
   } | null;
 }
 
+export interface PaginationInfo {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasMore: boolean;
+}
+
 export interface DonationFilters {
   category?: DonationCategory | 'all';
   status?: DonationStatus | 'all';
   search?: string;
   includeInactive?: boolean;
+  page?: number;
+  limit?: number;
 }
 
 export interface CreateDonationInput {
@@ -59,13 +70,18 @@ export interface UpdateDonationInput {
 }
 
 /**
- * Hook for managing donation items via the API
+ * Hook for managing donation items via the API with pagination support
  */
 export function useDonations(initialFilters?: DonationFilters) {
   const [items, setItems] = useState<DonationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filters, setFilters] = useState<DonationFilters>(initialFilters || {});
+  const [filters, setFilters] = useState<DonationFilters>({
+    page: 1,
+    limit: 50,
+    ...initialFilters,
+  });
+  const [pagination, setPagination] = useState<PaginationInfo | null>(null);
 
   const fetchItems = useCallback(async (newFilters?: DonationFilters) => {
     const activeFilters = newFilters || filters;
@@ -87,13 +103,22 @@ export function useDonations(initialFilters?: DonationFilters) {
       if (activeFilters.includeInactive) {
         params.append('include_inactive', 'true');
       }
+      if (activeFilters.page) {
+        params.append('page', String(activeFilters.page));
+      }
+      if (activeFilters.limit) {
+        params.append('limit', String(activeFilters.limit));
+      }
 
       const url = `/api/donations${params.toString() ? `?${params}` : ''}`;
-      const response = await fetch(url);
+      const response = await authFetch(url);
       const result = await response.json();
 
       if (result.success) {
         setItems(result.data || []);
+        if (result.pagination) {
+          setPagination(result.pagination);
+        }
       } else {
         setError(result.error || 'Failed to fetch donations');
       }
@@ -111,7 +136,7 @@ export function useDonations(initialFilters?: DonationFilters) {
 
   const createItem = useCallback(async (input: CreateDonationInput): Promise<DonationItem | null> => {
     try {
-      const response = await fetch('/api/donations', {
+      const response = await authFetch('/api/donations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -135,7 +160,7 @@ export function useDonations(initialFilters?: DonationFilters) {
 
   const updateItem = useCallback(async (input: UpdateDonationInput): Promise<DonationItem | null> => {
     try {
-      const response = await fetch('/api/donations', {
+      const response = await authFetch('/api/donations', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -161,7 +186,7 @@ export function useDonations(initialFilters?: DonationFilters) {
 
   const deleteItem = useCallback(async (id: string): Promise<boolean> => {
     try {
-      const response = await fetch(`/api/donations?id=${id}`, {
+      const response = await authFetch(`/api/donations?id=${id}`, {
         method: 'DELETE',
       });
 
@@ -183,30 +208,54 @@ export function useDonations(initialFilters?: DonationFilters) {
 
   const updateFilters = useCallback((newFilters: Partial<DonationFilters>) => {
     const merged = { ...filters, ...newFilters };
+    // Reset to page 1 when filters change (except for page changes)
+    if (!('page' in newFilters)) {
+      merged.page = 1;
+    }
     setFilters(merged);
     fetchItems(merged);
   }, [filters, fetchItems]);
+
+  const goToPage = useCallback((page: number) => {
+    updateFilters({ page });
+  }, [updateFilters]);
+
+  const nextPage = useCallback(() => {
+    if (pagination?.hasMore) {
+      goToPage((pagination?.page || 1) + 1);
+    }
+  }, [pagination, goToPage]);
+
+  const prevPage = useCallback(() => {
+    if (pagination && pagination.page > 1) {
+      goToPage(pagination.page - 1);
+    }
+  }, [pagination, goToPage]);
 
   return {
     items,
     loading,
     error,
     filters,
+    pagination,
     refresh: fetchItems,
     createItem,
     updateItem,
     deleteItem,
     updateFilters,
+    goToPage,
+    nextPage,
+    prevPage,
     setError,
   };
 }
 
 // Stats helper for dashboard
 export function useDonationStats() {
-  const { items, loading, error } = useDonations();
+  const { items, loading, error, pagination } = useDonations({ limit: 1000 });
 
   const stats = {
-    total: items.length,
+    total: pagination?.total || items.length,
     available: items.filter(i => i.status === 'available').length,
     reserved: items.filter(i => i.status === 'reserved').length,
     claimed: items.filter(i => i.status === 'claimed').length,

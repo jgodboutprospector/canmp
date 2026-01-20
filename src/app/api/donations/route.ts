@@ -1,17 +1,38 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireAuth } from '@/lib/auth-server';
+import { requireAuthFromRequest } from '@/lib/auth-server';
 import { createDonationSchema, searchParamSchema } from '@/lib/validation/schemas';
-import { handleApiError } from '@/lib/api-error';
+import {
+  successResponse,
+  errorResponse,
+  handleApiError,
+  parsePagination,
+  buildPaginationInfo,
+  checkRateLimit,
+  getRateLimitIdentifier,
+  rateLimitResponse,
+  createAuditLog,
+} from '@/lib/api-server-utils';
 
-// GET /api/donations - Fetch donations with optional filters
+// GET /api/donations - Fetch donations with optional filters and pagination
 export async function GET(request: NextRequest) {
   try {
-    // Require authentication
-    await requireAuth();
+    // Require authentication (supports both Bearer token and cookie-based auth)
+    const { userId, profile } = await requireAuthFromRequest(request);
+
+    // Rate limiting
+    const rateLimitId = getRateLimitIdentifier(request, profile.id);
+    const rateLimit = checkRateLimit(rateLimitId, { windowMs: 60000, maxRequests: 100 });
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit.resetAt);
+    }
 
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
+
+    // Parse pagination
+    const { page, limit, offset } = parsePagination(searchParams);
+
     const category = searchParams.get('category');
     const status = searchParams.get('status');
     const rawSearch = searchParams.get('search');
@@ -20,6 +41,32 @@ export async function GET(request: NextRequest) {
     // Sanitize search parameter
     const search = rawSearch ? searchParamSchema.parse(rawSearch) : null;
 
+    // First, get total count for pagination
+    let countQuery = supabase
+      .from('donation_items')
+      .select('*', { count: 'exact', head: true });
+
+    if (!include_inactive) {
+      countQuery = countQuery.eq('is_active', true);
+    }
+    if (category && category !== 'all') {
+      countQuery = countQuery.eq('category', category);
+    }
+    if (status && status !== 'all') {
+      countQuery = countQuery.eq('status', status);
+    }
+    if (search) {
+      countQuery = countQuery.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
+    }
+
+    const { count, error: countError } = await countQuery;
+
+    if (countError) {
+      console.error('Error counting donations:', countError);
+      return errorResponse(countError.message, 500);
+    }
+
+    // Now fetch paginated data
     let query = supabase
       .from('donation_items')
       .select(`
@@ -27,7 +74,8 @@ export async function GET(request: NextRequest) {
         claimed_by_household:households(id, name),
         photos:donation_photos(*)
       `)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
 
     if (!include_inactive) {
       query = query.eq('is_active', true);
@@ -49,10 +97,12 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('Error fetching donations:', error);
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return errorResponse(error.message, 500);
     }
 
-    return NextResponse.json({ success: true, data });
+    const pagination = buildPaginationInfo(page, limit, count || 0);
+
+    return successResponse(data, pagination);
   } catch (error) {
     return handleApiError(error);
   }
@@ -61,8 +111,15 @@ export async function GET(request: NextRequest) {
 // POST /api/donations - Create a new donation item
 export async function POST(request: NextRequest) {
   try {
-    // Require authentication
-    await requireAuth();
+    // Require authentication (supports both Bearer token and cookie-based auth)
+    const { userId, profile } = await requireAuthFromRequest(request);
+
+    // Rate limiting (stricter for write operations)
+    const rateLimitId = getRateLimitIdentifier(request, profile.id);
+    const rateLimit = checkRateLimit(`write:${rateLimitId}`, { windowMs: 60000, maxRequests: 30 });
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit.resetAt);
+    }
 
     const supabase = getSupabaseAdmin();
     const body = await request.json();
@@ -70,13 +127,15 @@ export async function POST(request: NextRequest) {
     // Validate input
     const validatedData = createDonationSchema.parse(body);
 
+    const insertData = {
+      ...validatedData,
+      status: validatedData.status || 'available',
+      donated_date: validatedData.donated_date || new Date().toISOString().split('T')[0],
+    };
+
     const { data, error } = await (supabase as any)
       .from('donation_items')
-      .insert({
-        ...validatedData,
-        status: validatedData.status || 'available',
-        donated_date: validatedData.donated_date || new Date().toISOString().split('T')[0],
-      })
+      .insert(insertData)
       .select(`
         *,
         claimed_by_household:households(id, name),
@@ -86,10 +145,19 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('Error creating donation:', error);
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return errorResponse(error.message, 500);
     }
 
-    return NextResponse.json({ success: true, data });
+    // Create audit log
+    await createAuditLog(supabase, {
+      userId: profile.id,
+      action: 'create',
+      entityType: 'donation_item',
+      entityId: data.id,
+      newValue: insertData,
+    });
+
+    return successResponse(data, undefined, 201);
   } catch (error) {
     return handleApiError(error);
   }
@@ -98,16 +166,30 @@ export async function POST(request: NextRequest) {
 // PATCH /api/donations - Update a donation item
 export async function PATCH(request: NextRequest) {
   try {
-    // Require authentication
-    await requireAuth();
+    // Require authentication (supports both Bearer token and cookie-based auth)
+    const { userId, profile } = await requireAuthFromRequest(request);
+
+    // Rate limiting
+    const rateLimitId = getRateLimitIdentifier(request, profile.id);
+    const rateLimit = checkRateLimit(`write:${rateLimitId}`, { windowMs: 60000, maxRequests: 30 });
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit.resetAt);
+    }
 
     const supabase = getSupabaseAdmin();
     const body = await request.json();
     const { id, ...updateData } = body;
 
     if (!id) {
-      return NextResponse.json({ success: false, error: 'Donation ID is required' }, { status: 400 });
+      return errorResponse('Donation ID is required', 400, 'MISSING_ID');
     }
+
+    // Fetch current state for audit log
+    const { data: oldData } = await (supabase as any)
+      .from('donation_items')
+      .select('*')
+      .eq('id', id)
+      .single();
 
     const { data, error } = await (supabase as any)
       .from('donation_items')
@@ -122,10 +204,20 @@ export async function PATCH(request: NextRequest) {
 
     if (error) {
       console.error('Error updating donation:', error);
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return errorResponse(error.message, 500);
     }
 
-    return NextResponse.json({ success: true, data });
+    // Create audit log
+    await createAuditLog(supabase, {
+      userId: profile.id,
+      action: 'update',
+      entityType: 'donation_item',
+      entityId: id,
+      oldValue: oldData,
+      newValue: updateData,
+    });
+
+    return successResponse(data);
   } catch (error) {
     return handleApiError(error);
   }
@@ -134,16 +226,30 @@ export async function PATCH(request: NextRequest) {
 // DELETE /api/donations - Soft delete a donation item
 export async function DELETE(request: NextRequest) {
   try {
-    // Require authentication
-    await requireAuth();
+    // Require authentication (supports both Bearer token and cookie-based auth)
+    const { userId, profile } = await requireAuthFromRequest(request);
+
+    // Rate limiting
+    const rateLimitId = getRateLimitIdentifier(request, profile.id);
+    const rateLimit = checkRateLimit(`write:${rateLimitId}`, { windowMs: 60000, maxRequests: 30 });
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit.resetAt);
+    }
 
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
     if (!id) {
-      return NextResponse.json({ success: false, error: 'Donation ID is required' }, { status: 400 });
+      return errorResponse('Donation ID is required', 400, 'MISSING_ID');
     }
+
+    // Fetch current state for audit log
+    const { data: oldData } = await (supabase as any)
+      .from('donation_items')
+      .select('*')
+      .eq('id', id)
+      .single();
 
     // Soft delete
     const { error } = await (supabase as any)
@@ -153,10 +259,19 @@ export async function DELETE(request: NextRequest) {
 
     if (error) {
       console.error('Error deleting donation:', error);
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return errorResponse(error.message, 500);
     }
 
-    return NextResponse.json({ success: true });
+    // Create audit log
+    await createAuditLog(supabase, {
+      userId: profile.id,
+      action: 'delete',
+      entityType: 'donation_item',
+      entityId: id,
+      oldValue: oldData,
+    });
+
+    return successResponse({ deleted: true });
   } catch (error) {
     return handleApiError(error);
   }
