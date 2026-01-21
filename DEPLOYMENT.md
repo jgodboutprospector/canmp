@@ -9,8 +9,8 @@ The CANMP application is deployed to an AWS EC2 instance running Docker. Deploym
 | Resource | Value |
 |----------|-------|
 | **Instance ID** | `i-06df99878b7dde82b` |
-| **Instance Type** | `t3.small` |
-| **Public IP** | `44.200.93.91` |
+| **Instance Type** | `t3.medium` |
+| **Public IP** | `13.221.60.79` |
 | **Domain** | `admin.newmainerproject.org` |
 | **Security Group** | `sg-07b56cfaf1a498611` |
 | **SSH Key** | `canmp-key` |
@@ -219,7 +219,7 @@ gh run watch $(gh run list --limit 1 --json databaseId -q '.[0].databaseId')
 ### SSH Access
 
 ```bash
-ssh -i ~/.ssh/canmp-key.pem ubuntu@44.200.93.91
+ssh -i ~/.ssh/canmp-key.pem ubuntu@13.221.60.79
 ```
 
 ### Deploy Latest Code
@@ -360,7 +360,7 @@ sudo swapon /swapfile
 To rollback to a previous version:
 
 ```bash
-ssh -i ~/.ssh/canmp-key.pem ubuntu@44.200.93.91
+ssh -i ~/.ssh/canmp-key.pem ubuntu@13.221.60.79
 cd /opt/canmp
 
 # Find the commit to rollback to
