@@ -22,7 +22,7 @@ const TASK_SELECT = `
   household:households(id, name),
   volunteer:volunteers(id, first_name, last_name),
   class_section:class_sections(id, name),
-  event:events(id, name),
+  event:events(id, title),
   property:properties(id, name)
 `;
 

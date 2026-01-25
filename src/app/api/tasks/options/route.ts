@@ -1,13 +1,13 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireAuth } from '@/lib/auth-server';
+import { requireAuthFromRequest } from '@/lib/auth-server';
 import { handleApiError } from '@/lib/api-error';
 
 // GET /api/tasks/options - Fetch dropdown options for task forms
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // Require authentication
-    await requireAuth();
+    // Require authentication (supports both Bearer token and cookie-based auth)
+    await requireAuthFromRequest(request);
 
     const supabase = getSupabaseAdmin();
     const [usersResult, beneficiariesResult, volunteersResult, classesResult, eventsResult, propertiesResult] = await Promise.all([
@@ -15,7 +15,7 @@ export async function GET() {
       supabase.from('beneficiaries').select('id, first_name, last_name').eq('is_active', true).order('first_name'),
       supabase.from('volunteers').select('id, first_name, last_name').eq('is_active', true).order('first_name'),
       supabase.from('class_sections').select('id, name').eq('is_active', true).order('name'),
-      supabase.from('events').select('id, name').order('event_date', { ascending: false }).limit(50),
+      supabase.from('events').select('id, title').eq('is_active', true).order('start_date', { ascending: false }).limit(50),
       supabase.from('properties').select('id, name').eq('is_active', true).order('name'),
     ]);
 

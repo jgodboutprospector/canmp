@@ -239,7 +239,7 @@ export default function AddTaskModal({ onClose, onCreate, defaultDueDate, defaul
                   <option value="">None</option>
                   {events.map(e => (
                     <option key={e.id} value={e.id}>
-                      {e.name}
+                      {e.title}
                     </option>
                   ))}
                 </select>

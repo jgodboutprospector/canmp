@@ -98,7 +98,7 @@ export default function KanbanBoard() {
     if (task.beneficiary) return `${task.beneficiary.first_name} ${task.beneficiary.last_name}`;
     if (task.volunteer) return `${task.volunteer.first_name} ${task.volunteer.last_name}`;
     if (task.class_section) return task.class_section.name;
-    if (task.event) return task.event.name;
+    if (task.event) return task.event.title;
     if (task.property) return task.property.name;
     if (task.household) return task.household.name;
     return null;

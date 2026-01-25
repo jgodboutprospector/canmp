@@ -97,7 +97,7 @@ export default function TaskDetailModal({ task, onClose, onUpdate, onDelete }: T
     if (task.beneficiary) return { label: `${task.beneficiary.first_name} ${task.beneficiary.last_name}`, type: 'Beneficiary', color: 'bg-emerald-100 text-emerald-700' };
     if (task.volunteer) return { label: `${task.volunteer.first_name} ${task.volunteer.last_name}`, type: 'Volunteer', color: 'bg-purple-100 text-purple-700' };
     if (task.class_section) return { label: task.class_section.name, type: 'Class', color: 'bg-blue-100 text-blue-700' };
-    if (task.event) return { label: task.event.name, type: 'Event', color: 'bg-pink-100 text-pink-700' };
+    if (task.event) return { label: task.event.title, type: 'Event', color: 'bg-pink-100 text-pink-700' };
     if (task.property) return { label: task.property.name, type: 'Property', color: 'bg-amber-100 text-amber-700' };
     if (task.household) return { label: task.household.name, type: 'Household', color: 'bg-cyan-100 text-cyan-700' };
     return null;
@@ -304,7 +304,7 @@ export default function TaskDetailModal({ task, onClose, onUpdate, onDelete }: T
                     >
                       <option value="">No event</option>
                       {events.map(ev => (
-                        <option key={ev.id} value={ev.id}>{ev.name}</option>
+                        <option key={ev.id} value={ev.id}>{ev.title}</option>
                       ))}
                     </select>
                   </div>

@@ -16,7 +16,7 @@ import {
 
 // Validation schemas
 const createEventSchema = z.object({
-  name: z.string().min(1).max(255),
+  title: z.string().min(1).max(255),
   description: z.string().optional(),
   event_type: z.enum(['class', 'workshop', 'community', 'orientation', 'meeting', 'celebration', 'other']),
   status: z.enum(['scheduled', 'in_progress', 'completed', 'cancelled']).default('scheduled'),
@@ -134,7 +134,7 @@ export async function GET(request: NextRequest) {
         .select(`
           *,
           beneficiary:beneficiaries(id, first_name, last_name, email, phone),
-          event:events(id, name)
+          event:events(id, title)
         `)
         .eq('event_id', event_id)
         .order('created_at', { ascending: false })
@@ -211,7 +211,7 @@ export async function POST(request: NextRequest) {
         .select(`
           *,
           beneficiary:beneficiaries(id, first_name, last_name),
-          event:events(id, name)
+          event:events(id, title)
         `)
         .single();
 

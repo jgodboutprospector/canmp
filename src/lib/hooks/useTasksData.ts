@@ -34,7 +34,7 @@ export interface Task {
   household?: { id: string; name: string } | null;
   volunteer?: { id: string; first_name: string; last_name: string } | null;
   class_section?: { id: string; name: string } | null;
-  event?: { id: string; name: string } | null;
+  event?: { id: string; title: string } | null;
   property?: { id: string; name: string } | null;
 }
 
@@ -268,7 +268,7 @@ export function useTaskOptions() {
   const [beneficiaries, setBeneficiaries] = useState<Array<{ id: string; first_name: string; last_name: string }>>([]);
   const [volunteers, setVolunteers] = useState<Array<{ id: string; first_name: string; last_name: string }>>([]);
   const [classes, setClasses] = useState<Array<{ id: string; name: string }>>([]);
-  const [events, setEvents] = useState<Array<{ id: string; name: string }>>([]);
+  const [events, setEvents] = useState<Array<{ id: string; title: string }>>([]);
   const [properties, setProperties] = useState<Array<{ id: string; name: string }>>([]);
   const [loading, setLoading] = useState(true);
 
