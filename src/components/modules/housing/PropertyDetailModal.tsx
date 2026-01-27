@@ -19,6 +19,14 @@ import {
   DollarSign,
   Trash2,
   AlertTriangle,
+  Plus,
+  Edit2,
+  Bed,
+  Bath,
+  Square,
+  CheckCircle,
+  XCircle,
+  Wrench,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/components/providers/AuthProvider';
@@ -55,6 +63,28 @@ interface Note {
   author_id: string | null;
 }
 
+interface Unit {
+  id: string;
+  property_id: string;
+  unit_number: string;
+  bedrooms: number;
+  bathrooms: number;
+  square_feet: number | null;
+  floor_number: number | null;
+  market_rent: number | null;
+  program_rent: number | null;
+  status: 'available' | 'occupied' | 'maintenance' | 'offline';
+  amenities: Record<string, unknown> | null;
+  notes: string | null;
+  lease?: {
+    id: string;
+    household?: {
+      id: string;
+      name: string;
+    };
+  } | null;
+}
+
 interface PropertyDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -66,9 +96,11 @@ export function PropertyDetailModal({ isOpen, onClose, propertyId, onDelete }: P
   const { profile } = useAuth();
   const [property, setProperty] = useState<Property | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingNotes, setLoadingNotes] = useState(false);
-  const [activeTab, setActiveTab] = useState<'details' | 'landlord' | 'notes'>('details');
+  const [loadingUnits, setLoadingUnits] = useState(false);
+  const [activeTab, setActiveTab] = useState<'details' | 'units' | 'landlord' | 'notes'>('details');
   const [newNote, setNewNote] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -76,30 +108,209 @@ export function PropertyDetailModal({ isOpen, onClose, propertyId, onDelete }: P
   const [editForm, setEditForm] = useState<Partial<Property>>({});
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [unitCount, setUnitCount] = useState(0);
+  const [showAddUnitModal, setShowAddUnitModal] = useState(false);
+  const [editingUnit, setEditingUnit] = useState<Unit | null>(null);
+  const [savingUnit, setSavingUnit] = useState(false);
+  const [unitForm, setUnitForm] = useState<{
+    unit_number: string;
+    bedrooms: number;
+    bathrooms: number;
+    square_feet: string;
+    floor_number: string;
+    market_rent: string;
+    program_rent: string;
+    status: 'available' | 'occupied' | 'maintenance' | 'offline';
+    notes: string;
+  }>({
+    unit_number: '',
+    bedrooms: 1,
+    bathrooms: 1,
+    square_feet: '',
+    floor_number: '',
+    market_rent: '',
+    program_rent: '',
+    status: 'available',
+    notes: '',
+  });
 
   useEffect(() => {
     if (isOpen && propertyId) {
       fetchProperty();
       fetchNotes();
+      fetchUnits();
     }
   }, [isOpen, propertyId]);
 
   async function fetchProperty() {
     setLoading(true);
     try {
-      const { data, error } = await (supabase as any)
-        .from('properties')
-        .select('*')
-        .eq('id', propertyId)
-        .single();
+      const [propertyRes, unitCountRes] = await Promise.all([
+        (supabase as any)
+          .from('properties')
+          .select('*')
+          .eq('id', propertyId)
+          .single(),
+        (supabase as any)
+          .from('units')
+          .select('id', { count: 'exact', head: true })
+          .eq('property_id', propertyId)
+          .neq('status', 'offline'),
+      ]);
 
-      if (error) throw error;
-      setProperty(data);
-      setEditForm(data);
+      if (propertyRes.error) throw propertyRes.error;
+      setProperty(propertyRes.data);
+      setEditForm(propertyRes.data);
+      setUnitCount(unitCountRes.count || 0);
     } catch (err) {
       console.error('Error fetching property:', err);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function generateUnits() {
+    if (!property) return;
+
+    const unitsToCreate = property.total_units - unitCount;
+    if (unitsToCreate <= 0) return;
+
+    try {
+      const newUnits = Array.from({ length: unitsToCreate }, (_, i) => ({
+        property_id: propertyId,
+        unit_number: String(unitCount + i + 1),
+        bedrooms: 1,
+        bathrooms: 1,
+        status: 'available',
+      }));
+
+      const { error } = await (supabase as any)
+        .from('units')
+        .insert(newUnits);
+
+      if (error) throw error;
+
+      // Refresh data
+      await fetchProperty();
+      await fetchUnits();
+    } catch (err) {
+      console.error('Error generating units:', err);
+    }
+  }
+
+  async function fetchUnits() {
+    setLoadingUnits(true);
+    try {
+      const { data, error } = await (supabase as any)
+        .from('units')
+        .select(`
+          *,
+          lease:leases(id, household:households(id, name))
+        `)
+        .eq('property_id', propertyId)
+        .neq('status', 'offline')
+        .order('unit_number');
+
+      if (error) throw error;
+
+      // Filter to only active leases
+      const unitsWithActiveLease = (data || []).map((unit: Unit & { lease: Array<{ id: string; household: { id: string; name: string } | null }> }) => ({
+        ...unit,
+        lease: unit.lease?.find((l: { id: string }) => l) || null,
+      }));
+
+      setUnits(unitsWithActiveLease);
+    } catch (err) {
+      console.error('Error fetching units:', err);
+    } finally {
+      setLoadingUnits(false);
+    }
+  }
+
+  function resetUnitForm() {
+    setUnitForm({
+      unit_number: '',
+      bedrooms: 1,
+      bathrooms: 1,
+      square_feet: '',
+      floor_number: '',
+      market_rent: '',
+      program_rent: '',
+      status: 'available',
+      notes: '',
+    });
+  }
+
+  function openEditUnit(unit: Unit) {
+    setEditingUnit(unit);
+    setUnitForm({
+      unit_number: unit.unit_number,
+      bedrooms: unit.bedrooms,
+      bathrooms: unit.bathrooms,
+      square_feet: unit.square_feet?.toString() || '',
+      floor_number: unit.floor_number?.toString() || '',
+      market_rent: unit.market_rent?.toString() || '',
+      program_rent: unit.program_rent?.toString() || '',
+      status: unit.status,
+      notes: unit.notes || '',
+    });
+    setShowAddUnitModal(true);
+  }
+
+  async function saveUnit() {
+    setSavingUnit(true);
+    try {
+      const unitData = {
+        property_id: propertyId,
+        unit_number: unitForm.unit_number,
+        bedrooms: unitForm.bedrooms,
+        bathrooms: unitForm.bathrooms,
+        square_feet: unitForm.square_feet ? parseInt(unitForm.square_feet) : null,
+        floor_number: unitForm.floor_number ? parseInt(unitForm.floor_number) : null,
+        market_rent: unitForm.market_rent ? parseFloat(unitForm.market_rent) : null,
+        program_rent: unitForm.program_rent ? parseFloat(unitForm.program_rent) : null,
+        status: unitForm.status,
+        notes: unitForm.notes || null,
+      };
+
+      if (editingUnit) {
+        const { error } = await (supabase as any)
+          .from('units')
+          .update(unitData)
+          .eq('id', editingUnit.id);
+        if (error) throw error;
+      } else {
+        const { error } = await (supabase as any)
+          .from('units')
+          .insert(unitData);
+        if (error) throw error;
+      }
+
+      await fetchUnits();
+      await fetchProperty();
+      setShowAddUnitModal(false);
+      setEditingUnit(null);
+      resetUnitForm();
+    } catch (err) {
+      console.error('Error saving unit:', err);
+    } finally {
+      setSavingUnit(false);
+    }
+  }
+
+  async function deleteUnit(unitId: string) {
+    if (!confirm('Are you sure you want to remove this unit?')) return;
+    try {
+      const { error } = await (supabase as any)
+        .from('units')
+        .update({ status: 'offline' })
+        .eq('id', unitId);
+
+      if (error) throw error;
+      await fetchUnits();
+      await fetchProperty();
+    } catch (err) {
+      console.error('Error deleting unit:', err);
     }
   }
 
@@ -163,12 +374,14 @@ export function PropertyDetailModal({ isOpen, onClose, propertyId, onDelete }: P
   async function deleteProperty() {
     setDeleting(true);
     try {
-      const { error } = await (supabase as any)
-        .from('properties')
-        .delete()
-        .eq('id', propertyId);
+      const response = await fetch(`/api/housing?type=properties&id=${propertyId}`, {
+        method: 'DELETE',
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to delete property');
+      }
 
       onClose();
       onDelete?.();
@@ -196,7 +409,7 @@ export function PropertyDetailModal({ isOpen, onClose, propertyId, onDelete }: P
       <div className="px-6 pb-6">
         {/* Tabs */}
         <div className="flex border-b border-gray-200 mb-4">
-          {(['details', 'landlord', 'notes'] as const).map((tab) => (
+          {(['details', 'units', 'landlord', 'notes'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -208,6 +421,11 @@ export function PropertyDetailModal({ isOpen, onClose, propertyId, onDelete }: P
               )}
             >
               {tab === 'landlord' ? 'Landlord Info' : tab}
+              {tab === 'units' && (
+                <span className="ml-1 text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                  {units.length}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -256,9 +474,24 @@ export function PropertyDetailModal({ isOpen, onClose, propertyId, onDelete }: P
                   <div className="bg-gray-50 rounded-lg p-3">
                     <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
                       <Home className="w-3 h-3" />
-                      Total Units
+                      Units
                     </div>
-                    <p className="font-medium text-gray-900">{property.total_units}</p>
+                    <p className="font-medium text-gray-900">
+                      {unitCount} / {property.total_units}
+                      {unitCount < property.total_units && (
+                        <span className="text-yellow-600 text-xs ml-2">
+                          ({property.total_units - unitCount} missing)
+                        </span>
+                      )}
+                    </p>
+                    {unitCount < property.total_units && (
+                      <button
+                        onClick={generateUnits}
+                        className="text-xs text-canmp-green-600 hover:underline mt-1"
+                      >
+                        Generate missing units
+                      </button>
+                    )}
                   </div>
                   {property.property_type === 'master_lease' && (
                     <>
@@ -458,6 +691,300 @@ export function PropertyDetailModal({ isOpen, onClose, propertyId, onDelete }: P
                   >
                     Save Changes
                   </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Units Tab */}
+        {activeTab === 'units' && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <div className="text-sm text-gray-500">
+                {units.filter(u => u.status === 'occupied').length} occupied / {units.length} total units
+              </div>
+              <button
+                onClick={() => {
+                  resetUnitForm();
+                  setEditingUnit(null);
+                  setShowAddUnitModal(true);
+                }}
+                className="btn-primary text-sm px-3 py-1.5"
+              >
+                <Plus className="w-4 h-4" />
+                Add Unit
+              </button>
+            </div>
+
+            {loadingUnits ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-canmp-green-500" />
+              </div>
+            ) : units.length === 0 ? (
+              <div className="text-center py-8 bg-gray-50 rounded-lg">
+                <Home className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                <p className="text-gray-500">No units created yet</p>
+                <button
+                  onClick={() => {
+                    resetUnitForm();
+                    setShowAddUnitModal(true);
+                  }}
+                  className="text-canmp-green-600 hover:underline text-sm mt-2"
+                >
+                  Add the first unit
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 max-h-96 overflow-y-auto">
+                {units.map((unit) => {
+                  const statusConfig = {
+                    available: { icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50', label: 'Available' },
+                    occupied: { icon: User, color: 'text-blue-600', bg: 'bg-blue-50', label: 'Occupied' },
+                    maintenance: { icon: Wrench, color: 'text-orange-600', bg: 'bg-orange-50', label: 'Maintenance' },
+                    offline: { icon: XCircle, color: 'text-gray-600', bg: 'bg-gray-50', label: 'Offline' },
+                  };
+                  const status = statusConfig[unit.status];
+                  const StatusIcon = status.icon;
+
+                  return (
+                    <div
+                      key={unit.id}
+                      className={cn(
+                        'border rounded-lg p-3 hover:shadow-sm transition-shadow',
+                        status.bg
+                      )}
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <h4 className="font-medium text-gray-900">Unit {unit.unit_number}</h4>
+                          <div className={cn('flex items-center gap-1 text-xs', status.color)}>
+                            <StatusIcon className="w-3 h-3" />
+                            {status.label}
+                          </div>
+                        </div>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => openEditUnit(unit)}
+                            className="p-1 text-gray-400 hover:text-canmp-green-600"
+                            title="Edit unit"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => deleteUnit(unit.id)}
+                            className="p-1 text-gray-400 hover:text-red-600"
+                            title="Remove unit"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 text-xs text-gray-600 mb-2">
+                        <span className="flex items-center gap-1">
+                          <Bed className="w-3 h-3" />
+                          {unit.bedrooms} bed
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Bath className="w-3 h-3" />
+                          {unit.bathrooms} bath
+                        </span>
+                        {unit.square_feet && (
+                          <span className="flex items-center gap-1">
+                            <Square className="w-3 h-3" />
+                            {unit.square_feet} sqft
+                          </span>
+                        )}
+                      </div>
+
+                      {(unit.market_rent || unit.program_rent) && (
+                        <div className="flex gap-2 text-xs mb-2">
+                          {unit.market_rent && (
+                            <span className="text-gray-600">
+                              Market: ${unit.market_rent.toLocaleString()}
+                            </span>
+                          )}
+                          {unit.program_rent && (
+                            <span className="text-canmp-green-600">
+                              Program: ${unit.program_rent.toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {unit.status === 'occupied' && unit.lease?.household && (
+                        <div className="text-xs bg-white rounded px-2 py-1 text-blue-700">
+                          Tenant: {unit.lease.household.name}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Add/Edit Unit Modal */}
+            {showAddUnitModal && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    {editingUnit ? 'Edit Unit' : 'Add New Unit'}
+                  </h3>
+
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Unit Number *
+                        </label>
+                        <input
+                          type="text"
+                          value={unitForm.unit_number}
+                          onChange={(e) => setUnitForm({ ...unitForm, unit_number: e.target.value })}
+                          className="input w-full"
+                          placeholder="e.g., 101, A-1"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Status
+                        </label>
+                        <select
+                          value={unitForm.status}
+                          onChange={(e) => setUnitForm({ ...unitForm, status: e.target.value as Unit['status'] })}
+                          className="input w-full"
+                        >
+                          <option value="available">Available</option>
+                          <option value="occupied">Occupied</option>
+                          <option value="maintenance">Maintenance</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Bedrooms
+                        </label>
+                        <input
+                          type="number"
+                          value={unitForm.bedrooms}
+                          onChange={(e) => setUnitForm({ ...unitForm, bedrooms: parseInt(e.target.value) || 0 })}
+                          className="input w-full"
+                          min="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Bathrooms
+                        </label>
+                        <input
+                          type="number"
+                          value={unitForm.bathrooms}
+                          onChange={(e) => setUnitForm({ ...unitForm, bathrooms: parseFloat(e.target.value) || 0 })}
+                          className="input w-full"
+                          min="0"
+                          step="0.5"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Sq Ft
+                        </label>
+                        <input
+                          type="number"
+                          value={unitForm.square_feet}
+                          onChange={(e) => setUnitForm({ ...unitForm, square_feet: e.target.value })}
+                          className="input w-full"
+                          min="0"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Market Rent
+                        </label>
+                        <input
+                          type="number"
+                          value={unitForm.market_rent}
+                          onChange={(e) => setUnitForm({ ...unitForm, market_rent: e.target.value })}
+                          className="input w-full"
+                          min="0"
+                          step="0.01"
+                          placeholder="$"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Program Rent
+                        </label>
+                        <input
+                          type="number"
+                          value={unitForm.program_rent}
+                          onChange={(e) => setUnitForm({ ...unitForm, program_rent: e.target.value })}
+                          className="input w-full"
+                          min="0"
+                          step="0.01"
+                          placeholder="$"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Floor Number
+                      </label>
+                      <input
+                        type="number"
+                        value={unitForm.floor_number}
+                        onChange={(e) => setUnitForm({ ...unitForm, floor_number: e.target.value })}
+                        className="input w-24"
+                        min="1"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Notes
+                      </label>
+                      <textarea
+                        value={unitForm.notes}
+                        onChange={(e) => setUnitForm({ ...unitForm, notes: e.target.value })}
+                        className="input w-full"
+                        rows={2}
+                        placeholder="Any notes about this unit..."
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-3 mt-6">
+                    <button
+                      onClick={() => {
+                        setShowAddUnitModal(false);
+                        setEditingUnit(null);
+                        resetUnitForm();
+                      }}
+                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={saveUnit}
+                      disabled={!unitForm.unit_number || savingUnit}
+                      className="btn-primary"
+                    >
+                      {savingUnit ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : editingUnit ? (
+                        'Save Changes'
+                      ) : (
+                        'Add Unit'
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -788,28 +1315,35 @@ export function PropertyDetailModal({ isOpen, onClose, propertyId, onDelete }: P
             <div className="flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
-                <h4 className="font-medium text-red-800">Delete Property?</h4>
+                <h4 className="font-medium text-red-800">Deactivate Property?</h4>
                 <p className="text-sm text-red-600 mt-1">
-                  This will permanently delete {property.name} and all associated data. This action cannot be undone.
+                  This will deactivate {property.name} and hide it from active lists.
                 </p>
+                {unitCount > 0 && (
+                  <div className="mt-2 p-2 bg-red-100 rounded text-sm">
+                    <p className="font-medium text-red-800">This will also affect:</p>
+                    <p className="text-red-700">{unitCount} active unit{unitCount !== 1 ? 's' : ''}</p>
+                  </div>
+                )}
                 <div className="flex gap-2 mt-3">
                   <button
                     onClick={() => setShowDeleteConfirm(false)}
-                    className="px-3 py-1.5 text-sm bg-white text-gray-700 rounded border border-gray-300 hover:bg-gray-50"
+                    disabled={deleting}
+                    className="px-3 py-1.5 text-sm bg-white text-gray-700 rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={deleteProperty}
                     disabled={deleting}
-                    className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-1"
+                    className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-1 disabled:opacity-50"
                   >
                     {deleting ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
                       <Trash2 className="w-4 h-4" />
                     )}
-                    Delete Property
+                    {deleting ? 'Deleting...' : 'Deactivate Property'}
                   </button>
                 </div>
               </div>
