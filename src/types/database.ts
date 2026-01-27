@@ -386,8 +386,51 @@ export interface Volunteer {
   is_active: boolean;
   background_check_date: string | null;
   orientation_date: string | null;
+  // Enhanced fields
+  total_hours: number;
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
+  emergency_contact_relationship: string | null;
+  address_street: string | null;
+  address_city: string | null;
+  address_state: string | null;
+  address_zip: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface VolunteerHours {
+  id: string;
+  volunteer_id: string;
+  event_id: string | null;
+  date: string;
+  hours: number;
+  activity_type: string | null;
+  description: string | null;
+  verified_by_id: string | null;
+  verified_at: string | null;
+  created_at: string;
+  created_by_id: string | null;
+}
+
+export interface VolunteerAvailability {
+  id: string;
+  volunteer_id: string;
+  day_of_week: number; // 0=Sunday, 6=Saturday
+  start_time: string | null;
+  end_time: string | null;
+  is_available: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VolunteerActivityType {
+  id: string;
+  name: string;
+  description: string | null;
+  is_active: boolean;
+  created_at: string;
 }
 
 export interface DonationItem {
@@ -481,4 +524,85 @@ export interface DonationItemWithRelations extends DonationItem {
   photos?: DonationPhoto[];
   claims?: DonationClaim[];
   claimed_by_household?: Household;
+}
+
+export interface VolunteerWithRelations extends Volunteer {
+  hours?: VolunteerHours[];
+  availability?: VolunteerAvailability[];
+  neon_account?: {
+    neon_account_id: string;
+    email: string | null;
+    first_name: string | null;
+    last_name: string | null;
+  };
+}
+
+export interface VolunteerHoursWithRelations extends VolunteerHours {
+  volunteer?: Volunteer;
+  event?: { id: string; title: string };
+  verified_by?: { id: string; first_name: string; last_name: string };
+  created_by?: { id: string; first_name: string; last_name: string };
+}
+
+export interface VolunteerHoursSummary {
+  volunteer_id: string;
+  first_name: string;
+  last_name: string;
+  email: string | null;
+  is_active: boolean;
+  total_hours: number;
+  total_entries: number;
+  last_volunteer_date: string | null;
+  hours_this_month: number;
+  hours_this_year: number;
+}
+
+// Volunteer Request types
+export type VolunteerRequestStatus = 'pending' | 'matched' | 'in_progress' | 'completed' | 'cancelled';
+export type RequestUrgency = 'low' | 'medium' | 'high' | 'urgent';
+
+export interface VolunteerRequest {
+  id: string;
+  household_id: string | null;
+  beneficiary_id: string | null;
+  title: string;
+  description: string | null;
+  request_type: string | null;
+  urgency: RequestUrgency;
+  status: VolunteerRequestStatus;
+  preferred_date: string | null;
+  preferred_time_start: string | null;
+  preferred_time_end: string | null;
+  is_recurring: boolean;
+  recurrence_pattern: string | null;
+  location_address: string | null;
+  location_notes: string | null;
+  languages_needed: string[] | null;
+  assigned_volunteer_id: string | null;
+  assigned_at: string | null;
+  assigned_by_id: string | null;
+  completed_at: string | null;
+  completed_by_id: string | null;
+  completion_notes: string | null;
+  hours_spent: number | null;
+  created_by_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VolunteerRequestWithRelations extends VolunteerRequest {
+  household?: Household;
+  beneficiary?: Beneficiary;
+  assigned_volunteer?: Volunteer;
+  created_by?: { id: string; first_name: string; last_name: string };
+}
+
+export interface VolunteerRequestType {
+  id: string;
+  name: string;
+  description: string | null;
+  typical_duration_hours: number | null;
+  skills_required: string[] | null;
+  is_active: boolean;
+  created_at: string;
 }

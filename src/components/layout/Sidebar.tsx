@@ -29,6 +29,7 @@ const allNavigation = [
   { name: 'Beneficiaries', href: '/beneficiaries', icon: Users, roles: ['admin', 'coordinator'] },
   { name: 'Language Program', href: '/language', icon: GraduationCap, roles: ['admin', 'coordinator', 'teacher'] },
   { name: 'Workforce', href: '/workforce', icon: Briefcase, roles: ['admin', 'coordinator'] },
+  { name: 'Volunteers', href: '/volunteers', icon: Heart, roles: ['admin', 'coordinator', 'volunteer'] },
   { name: 'Mentor Teams', href: '/mentors', icon: HeartHandshake, roles: ['admin', 'coordinator', 'volunteer'] },
   { name: 'Donations', href: '/donations', icon: Gift, roles: ['admin', 'coordinator', 'volunteer'] },
   { name: 'Events', href: '/events', icon: Calendar, roles: ['admin', 'coordinator', 'teacher', 'volunteer'] },

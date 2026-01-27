@@ -6,6 +6,55 @@ import { supabase } from '@/lib/supabase';
 import type { User, Session } from '@supabase/supabase-js';
 import { UserProfile, UserRole, getUserProfile, updateLastLogin, hasPermission } from '@/lib/auth';
 
+// Token refresh buffer - refresh if expiring within this many seconds
+const TOKEN_REFRESH_BUFFER_SECONDS = 5 * 60; // 5 minutes
+
+// App version for cache invalidation - update this when deploying breaking changes
+const APP_VERSION = '1.0.1';
+const APP_VERSION_KEY = 'canmp_app_version';
+
+/**
+ * Clear all Supabase-related storage keys from localStorage and sessionStorage
+ * This ensures no stale auth tokens persist after logout
+ */
+function clearAllAuthStorage() {
+  if (typeof window === 'undefined') return;
+
+  // Clear localStorage
+  const localKeys = Object.keys(localStorage);
+  localKeys.forEach(key => {
+    // Clear Supabase auth tokens (sb-*-auth-token pattern)
+    if (key.startsWith('sb-') || key.includes('supabase') || key.includes('auth')) {
+      localStorage.removeItem(key);
+    }
+  });
+
+  // Clear sessionStorage
+  const sessionKeys = Object.keys(sessionStorage);
+  sessionKeys.forEach(key => {
+    if (key.startsWith('sb-') || key.includes('supabase') || key.includes('auth')) {
+      sessionStorage.removeItem(key);
+    }
+  });
+
+  // Clear specific known keys
+  localStorage.removeItem('supabase.auth.token');
+}
+
+/**
+ * Check if app version has changed and clear cache if needed
+ */
+function checkVersionAndClearCache() {
+  if (typeof window === 'undefined') return;
+
+  const storedVersion = localStorage.getItem(APP_VERSION_KEY);
+  if (storedVersion !== APP_VERSION) {
+    // Version mismatch - clear all cached data
+    clearAllAuthStorage();
+    localStorage.setItem(APP_VERSION_KEY, APP_VERSION);
+  }
+}
+
 interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
@@ -24,6 +73,15 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Check if session token is expiring soon
+function isTokenExpiringSoon(session: Session | null): boolean {
+  if (!session?.expires_at) return false;
+  const expiresAt = session.expires_at * 1000; // Convert to milliseconds
+  const now = Date.now();
+  const bufferMs = TOKEN_REFRESH_BUFFER_SECONDS * 1000;
+  return expiresAt - now < bufferMs;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -31,6 +89,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const initializedRef = useRef(false);
+  const refreshingRef = useRef(false);
+
+  // Clear all auth state
+  const clearAuthState = useCallback(() => {
+    setSession(null);
+    setUser(null);
+    setProfile(null);
+    setLoading(false);
+    // Clear all Supabase auth storage
+    clearAllAuthStorage();
+  }, []);
 
   // Load user profile with error handling
   const loadProfile = useCallback(async (userId: string) => {
@@ -50,6 +119,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (initializedRef.current) return;
     initializedRef.current = true;
 
+    // Check app version and clear cache if needed
+    checkVersionAndClearCache();
+
     let isMounted = true;
 
     // Get initial session
@@ -62,10 +134,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Clear any stale session data
           await supabase.auth.signOut();
           if (isMounted) {
-            setSession(null);
-            setUser(null);
-            setProfile(null);
-            setLoading(false);
+            clearAuthState();
+          }
+          return;
+        }
+
+        // Check if token is expiring soon and proactively refresh
+        if (session && isTokenExpiringSoon(session) && !refreshingRef.current) {
+          refreshingRef.current = true;
+          try {
+            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+            if (refreshError || !refreshData.session) {
+              console.warn('Failed to refresh expiring token, signing out');
+              await supabase.auth.signOut();
+              if (isMounted) {
+                clearAuthState();
+                router.push('/login');
+              }
+              return;
+            }
+            // Use the refreshed session
+            if (isMounted) {
+              setSession(refreshData.session);
+              setUser(refreshData.session.user);
+              await loadProfile(refreshData.session.user.id);
+            }
+          } finally {
+            refreshingRef.current = false;
           }
           return;
         }
@@ -103,12 +198,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async (event, session) => {
         if (!isMounted) return;
 
+        // Handle SIGNED_OUT event - clear all state immediately
+        if (event === 'SIGNED_OUT') {
+          clearAuthState();
+          return;
+        }
+
         // Handle token refresh errors by signing out
         if (event === 'TOKEN_REFRESHED' && !session) {
-          setSession(null);
-          setUser(null);
-          setProfile(null);
-          setLoading(false);
+          clearAuthState();
           return;
         }
 
@@ -132,10 +230,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
-  }, [loadProfile]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadProfile, clearAuthState, router]);
 
   async function signIn(email: string, password: string) {
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -148,11 +247,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut() {
-    await supabase.auth.signOut();
-    setUser(null);
-    setProfile(null);
-    setSession(null);
+    // Clear local state BEFORE calling Supabase signOut to prevent race conditions
+    clearAuthState();
     router.push('/login');
+    // Then sign out from Supabase
+    await supabase.auth.signOut();
   }
 
   // Permission helpers
