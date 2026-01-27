@@ -4,10 +4,12 @@ import { useState } from 'react';
 import { Plus, Search, Users, Heart, UserPlus, Calendar, Loader2, ChevronRight } from 'lucide-react';
 import { useMentorTeams } from '@/lib/hooks/useMentorTeams';
 import { AddMentorTeamModal } from './AddMentorTeamModal';
+import { MentorTeamDetailModal } from './MentorTeamDetailModal';
 
 export default function MentorTeamsList() {
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const { teams, loading, error, refetch } = useMentorTeams();
 
   const filtered = teams.filter(
@@ -98,6 +100,7 @@ export default function MentorTeamsList() {
         {filtered.map((team) => (
           <div
             key={team.id}
+            onClick={() => setSelectedTeamId(team.id)}
             className="card p-5 hover:shadow-md transition-shadow cursor-pointer"
           >
             <div className="flex justify-between items-start">
@@ -194,6 +197,16 @@ export default function MentorTeamsList() {
         onClose={() => setShowAddModal(false)}
         onSuccess={refetch}
       />
+
+      {/* Mentor Team Detail Modal */}
+      {selectedTeamId && (
+        <MentorTeamDetailModal
+          teamId={selectedTeamId}
+          isOpen={true}
+          onClose={() => setSelectedTeamId(null)}
+          onUpdate={refetch}
+        />
+      )}
     </div>
   );
 }
