@@ -13,6 +13,7 @@ interface UserProfile {
   first_name: string;
   last_name: string;
   role: UserRole;
+  is_active?: boolean;
 }
 
 export async function getServerSession() {
@@ -53,7 +54,7 @@ export async function getServerSession() {
   return { user };
 }
 
-export async function getUserProfile(userId: string): Promise<UserProfile | null> {
+export async function getUserProfile(userId: string, userEmail?: string): Promise<UserProfile | null> {
   // Use service role to bypass RLS for profile lookup
   const { createClient } = await import('@supabase/supabase-js');
 
@@ -62,18 +63,44 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
+  // First, try to find by auth_user_id
   const { data, error } = await supabase
     .from('users')
-    .select('id, auth_user_id, email, first_name, last_name, role')
+    .select('id, auth_user_id, email, first_name, last_name, role, is_active')
     .eq('auth_user_id', userId)
     .single();
 
-  if (error || !data) {
-    console.error('getUserProfile error:', error);
-    return null;
+  if (!error && data) {
+    return data as UserProfile;
   }
 
-  return data as UserProfile;
+  // If not found by auth_user_id, try to find by email and link the account
+  if (userEmail) {
+    const { data: emailData, error: emailError } = await supabase
+      .from('users')
+      .select('id, auth_user_id, email, first_name, last_name, role, is_active')
+      .eq('email', userEmail)
+      .single();
+
+    if (!emailError && emailData) {
+      // Found by email - link the auth_user_id
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ auth_user_id: userId })
+        .eq('id', emailData.id);
+
+      if (updateError) {
+        console.error('Error linking auth_user_id:', updateError);
+      } else {
+        console.log(`Linked auth_user_id ${userId} to user ${emailData.email}`);
+      }
+
+      return { ...emailData, auth_user_id: userId } as UserProfile;
+    }
+  }
+
+  console.error('getUserProfile error: User not found by auth_user_id or email');
+  return null;
 }
 
 export async function requireAuth() {
@@ -83,7 +110,7 @@ export async function requireAuth() {
     throw new AuthError('Unauthorized', 401);
   }
 
-  const profile = await getUserProfile(session.user.id);
+  const profile = await getUserProfile(session.user.id, session.user.email || undefined);
 
   if (!profile) {
     throw new AuthError('User profile not found', 401);
@@ -98,6 +125,7 @@ export async function requireAuth() {
  */
 export async function requireAuthFromRequest(request: NextRequest) {
   let userId: string | null = null;
+  let userEmail: string | null = null;
 
   // First, try to get user from Authorization header (Bearer token)
   const authHeader = request.headers.get('authorization');
@@ -113,6 +141,7 @@ export async function requireAuthFromRequest(request: NextRequest) {
 
     if (!error && user) {
       userId = user.id;
+      userEmail = user.email || null;
     }
   }
 
@@ -121,6 +150,7 @@ export async function requireAuthFromRequest(request: NextRequest) {
     const session = await getServerSession();
     if (session?.user) {
       userId = session.user.id;
+      userEmail = session.user.email || null;
     }
   }
 
@@ -128,7 +158,7 @@ export async function requireAuthFromRequest(request: NextRequest) {
     throw new AuthError('Unauthorized', 401);
   }
 
-  const profile = await getUserProfile(userId);
+  const profile = await getUserProfile(userId, userEmail || undefined);
 
   if (!profile) {
     throw new AuthError('User profile not found', 401);

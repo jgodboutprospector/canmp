@@ -7,6 +7,7 @@ import { getServerSession, getUserProfile } from '@/lib/auth-server';
 export async function GET(request: NextRequest) {
   try {
     let userId: string | null = null;
+    let userEmail: string | null = null;
 
     // First, try to get user from Authorization header (for immediate post-login)
     const authHeader = request.headers.get('authorization');
@@ -23,6 +24,7 @@ export async function GET(request: NextRequest) {
 
       if (!error && user) {
         userId = user.id;
+        userEmail = user.email || null;
       }
     }
 
@@ -31,6 +33,7 @@ export async function GET(request: NextRequest) {
       const session = await getServerSession();
       if (session?.user) {
         userId = session.user.id;
+        userEmail = session.user.email || null;
       }
     }
 
@@ -38,7 +41,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const profile = await getUserProfile(userId);
+    // Pass email to allow auto-linking of accounts
+    const profile = await getUserProfile(userId, userEmail || undefined);
 
     if (!profile) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
