@@ -79,7 +79,7 @@ export async function getUserProfile(userId: string, userEmail?: string): Promis
     const { data: emailData, error: emailError } = await supabase
       .from('users')
       .select('id, auth_user_id, email, first_name, last_name, role, is_active')
-      .eq('email', userEmail)
+      .ilike('email', userEmail)
       .single();
 
     if (!emailError && emailData) {
