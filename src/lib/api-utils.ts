@@ -87,15 +87,22 @@ export async function fetchWithRetry(
 }
 
 /**
- * Sanitize error messages to remove sensitive data
+ * Sanitize error messages to remove sensitive data and truncate long messages
  */
-export function sanitizeErrorMessage(error: unknown): string {
+export function sanitizeErrorMessage(error: unknown, maxLength: number = 400): string {
   const message = error instanceof Error ? error.message : String(error);
 
   // Remove potential API keys, tokens, passwords
-  return message
+  const sanitized = message
     .replace(/Bearer\s+[A-Za-z0-9\-._~+/]+=*/gi, 'Bearer [REDACTED]')
     .replace(/api[_-]?key[=:]\s*["']?[A-Za-z0-9\-._]+["']?/gi, 'api_key=[REDACTED]')
     .replace(/password[=:]\s*["']?[^"'\s]+["']?/gi, 'password=[REDACTED]')
     .replace(/secret[=:]\s*["']?[A-Za-z0-9\-._]+["']?/gi, 'secret=[REDACTED]');
+
+  // Truncate long messages to prevent log flooding
+  if (sanitized.length > maxLength) {
+    return sanitized.slice(0, maxLength - 3) + '...';
+  }
+
+  return sanitized;
 }

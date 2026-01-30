@@ -5,6 +5,7 @@ global.fetch = jest.fn();
 describe('Neon CRM Service', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    neonClient.resetSession();
     process.env.NEON_ORG_ID = 'test-org';
     process.env.NEON_API_KEY = 'test-api-key';
   });

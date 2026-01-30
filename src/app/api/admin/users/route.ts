@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireRole } from '@/lib/auth-server';
-import { createUserSchema } from '@/lib/validation/schemas';
+import { createUserSchema, updateUserSchema } from '@/lib/validation/schemas';
 import { handleApiError } from '@/lib/api-error';
 
 export async function POST(request: Request) {
@@ -92,11 +92,22 @@ export async function PATCH(request: Request) {
     // Require admin role
     await requireRole(['admin']);
 
-    const { userId, updates } = await request.json();
+    const body = await request.json();
+    const { userId } = body;
 
     if (!userId) {
       return NextResponse.json(
         { error: 'User ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate and sanitize updates - only allow specific fields
+    const updates = updateUserSchema.parse(body.updates || {});
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json(
+        { error: 'No valid updates provided' },
         { status: 400 }
       );
     }

@@ -84,15 +84,20 @@ export interface NeonApiResponse<T> {
 
 class NeonClient {
   private baseUrl: string;
-  private orgId: string;
-  private apiKey: string;
   private sessionId: string | null = null;
   private sessionExpiry: Date | null = null;
 
   constructor() {
     this.baseUrl = 'https://api.neoncrm.com/neonws/services/api';
-    this.orgId = process.env.NEON_ORG_ID || '';
-    this.apiKey = process.env.NEON_API_KEY || '';
+  }
+
+  /** Get credentials lazily to support test mocking */
+  private get orgId(): string {
+    return process.env.NEON_ORG_ID || '';
+  }
+
+  private get apiKey(): string {
+    return process.env.NEON_API_KEY || '';
   }
 
   /**
@@ -493,6 +498,12 @@ class NeonClient {
         message: error instanceof Error ? error.message : 'Connection failed',
       };
     }
+  }
+
+  /** Reset session - primarily for testing */
+  resetSession(): void {
+    this.sessionId = null;
+    this.sessionExpiry = null;
   }
 }
 
