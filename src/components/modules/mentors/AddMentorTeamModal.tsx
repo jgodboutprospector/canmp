@@ -202,7 +202,7 @@ export function AddMentorTeamModal({ isOpen, onClose, onSuccess }: AddMentorTeam
                 {volunteers.map((v) => (
                   <option key={v.id} value={v.id}>
                     {v.first_name} {v.last_name}
-                    {v.skills.length > 0 && ` - ${v.skills.slice(0, 2).join(', ')}`}
+                    {v.skills?.length > 0 && ` - ${v.skills.slice(0, 2).join(', ')}`}
                   </option>
                 ))}
               </select>
