@@ -23,6 +23,7 @@ import {
   Globe,
 } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
+import { DeleteConfirmation } from '@/components/ui/DeleteConfirmation';
 import { supabase } from '@/lib/supabase';
 import { authFetch } from '@/lib/api-client';
 import { format } from 'date-fns';
@@ -98,7 +99,9 @@ export function MentorTeamDetailModal({ teamId, isOpen, onClose, onUpdate }: Pro
   const [showAddVolunteerModal, setShowAddVolunteerModal] = useState(false);
   const [showAddNoteModal, setShowAddNoteModal] = useState(false);
   const [showAddRequestModal, setShowAddRequestModal] = useState(false);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const { volunteers: allVolunteers } = useVolunteers();
   const { requests, refetch: refetchRequests } = useVolunteerRequests({
@@ -230,6 +233,27 @@ export function MentorTeamDetailModal({ teamId, isOpen, onClose, onUpdate }: Pro
       onUpdate?.();
     } catch (err) {
       console.error('Error updating role:', err);
+    }
+  }
+
+  async function handleDeleteTeam() {
+    setIsDeleting(true);
+    try {
+      const response = await authFetch(`/api/mentors?id=${teamId}`, {
+        method: 'DELETE',
+      });
+
+      const result: ApiResponse = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete team');
+      }
+
+      onUpdate?.();
+      onClose();
+    } catch (err) {
+      console.error('Error deleting team:', err);
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -639,8 +663,37 @@ export function MentorTeamDetailModal({ teamId, isOpen, onClose, onUpdate }: Pro
         )}
       </div>
 
+      {/* Delete Confirmation */}
+      {showDeleteConfirmation && (
+        <div className="px-6 pb-4">
+          <DeleteConfirmation
+            title="Delete Mentor Team"
+            message={`Are you sure you want to delete "${team.name || 'this team'}"? This action cannot be undone.`}
+            relatedItems={[
+              ...(activeMembers.length > 0 ? [{ label: 'team members will be removed', count: activeMembers.length }] : []),
+              ...(notes.length > 0 ? [{ label: 'notes will be deleted', count: notes.length }] : []),
+            ]}
+            onConfirm={handleDeleteTeam}
+            onCancel={() => setShowDeleteConfirmation(false)}
+            isDeleting={isDeleting}
+            confirmLabel="Delete Team"
+          />
+        </div>
+      )}
+
       {/* Footer */}
-      <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
+      <div className="px-6 py-4 border-t border-gray-200 flex justify-between">
+        {!showDeleteConfirmation ? (
+          <button
+            onClick={() => setShowDeleteConfirmation(true)}
+            className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-2"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete Team
+          </button>
+        ) : (
+          <div />
+        )}
         <button onClick={onClose} className="btn-secondary">
           Close
         </button>
