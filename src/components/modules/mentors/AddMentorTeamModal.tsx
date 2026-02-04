@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { supabase } from '@/lib/supabase';
+import { authFetch } from '@/lib/api-client';
 import { Loader2, X, UserPlus } from 'lucide-react';
 import type { Household, Volunteer } from '@/types/database';
 import type { ApiResponse } from '@/lib/api-server-utils';
@@ -95,10 +96,9 @@ export function AddMentorTeamModal({ isOpen, onClose, onSuccess }: AddMentorTeam
     setError('');
 
     try {
-      const response = await fetch('/api/mentors', {
+      const response = await authFetch('/api/mentors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           name: form.name.trim(),
           household_id: form.household_id,

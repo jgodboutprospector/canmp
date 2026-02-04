@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { authFetch } from '@/lib/api-client';
 import type { Volunteer, Household, Beneficiary } from '@/types/database';
 import type { ApiResponse } from '@/lib/api-server-utils';
 
@@ -78,7 +79,7 @@ export function useMentorTeams() {
   const fetchTeams = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/mentors', { credentials: 'include' });
+      const response = await authFetch('/api/mentors');
       const result: ApiResponse<MentorTeamWithRelations[]> = await response.json();
 
       if (!result.success) {
@@ -105,10 +106,9 @@ export function useMentorTeams() {
     member_ids?: string[];
     notes?: string;
   }) => {
-    const response = await fetch('/api/mentors', {
+    const response = await authFetch('/api/mentors', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify(data),
     });
 
@@ -122,10 +122,9 @@ export function useMentorTeams() {
   }, [fetchTeams]);
 
   const addMember = useCallback(async (teamId: string, volunteerId: string, role: 'lead' | 'member' = 'member') => {
-    const response = await fetch('/api/mentors?action=add_member', {
+    const response = await authFetch('/api/mentors?action=add_member', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify({ team_id: teamId, volunteer_id: volunteerId, role }),
     });
 
@@ -139,10 +138,9 @@ export function useMentorTeams() {
   }, [fetchTeams]);
 
   const updateMember = useCallback(async (memberId: string, updates: { role?: 'lead' | 'member'; is_active?: boolean }) => {
-    const response = await fetch('/api/mentors?action=update_member', {
+    const response = await authFetch('/api/mentors?action=update_member', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify({ member_id: memberId, ...updates }),
     });
 
@@ -156,9 +154,8 @@ export function useMentorTeams() {
   }, [fetchTeams]);
 
   const removeMember = useCallback(async (memberId: string) => {
-    const response = await fetch(`/api/mentors?id=${memberId}&type=member`, {
+    const response = await authFetch(`/api/mentors?id=${memberId}&type=member`, {
       method: 'DELETE',
-      credentials: 'include',
     });
 
     const result: ApiResponse = await response.json();
@@ -171,9 +168,8 @@ export function useMentorTeams() {
   }, [fetchTeams]);
 
   const deleteTeam = useCallback(async (teamId: string) => {
-    const response = await fetch(`/api/mentors?id=${teamId}`, {
+    const response = await authFetch(`/api/mentors?id=${teamId}`, {
       method: 'DELETE',
-      credentials: 'include',
     });
 
     const result: ApiResponse = await response.json();
@@ -208,7 +204,7 @@ export function useMentorTeam(id: string) {
 
     try {
       setLoading(true);
-      const response = await fetch(`/api/mentors?id=${id}`, { credentials: 'include' });
+      const response = await authFetch(`/api/mentors?id=${id}`);
       const result: ApiResponse<MentorTeamWithRelations> = await response.json();
 
       if (!result.success) {

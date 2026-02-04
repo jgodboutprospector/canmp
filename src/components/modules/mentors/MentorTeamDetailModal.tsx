@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { supabase } from '@/lib/supabase';
+import { authFetch } from '@/lib/api-client';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useVolunteerRequests, useRequestTypes, useVolunteers } from '@/lib/hooks/useVolunteers';
@@ -164,10 +165,9 @@ export function MentorTeamDetailModal({ teamId, isOpen, onClose, onUpdate }: Pro
   async function addVolunteerToTeam(volunteerId: string, role: string = 'member') {
     setSaving(true);
     try {
-      const response = await fetch('/api/mentors?action=add_member', {
+      const response = await authFetch('/api/mentors?action=add_member', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           team_id: teamId,
           volunteer_id: volunteerId,
@@ -194,9 +194,8 @@ export function MentorTeamDetailModal({ teamId, isOpen, onClose, onUpdate }: Pro
     if (!confirm('Are you sure you want to remove this volunteer from the team?')) return;
 
     try {
-      const response = await fetch(`/api/mentors?id=${memberId}&type=member`, {
+      const response = await authFetch(`/api/mentors?id=${memberId}&type=member`, {
         method: 'DELETE',
-        credentials: 'include',
       });
 
       const result: ApiResponse = await response.json();
@@ -213,10 +212,9 @@ export function MentorTeamDetailModal({ teamId, isOpen, onClose, onUpdate }: Pro
 
   async function updateMemberRole(memberId: string, newRole: string) {
     try {
-      const response = await fetch('/api/mentors?action=update_member', {
+      const response = await authFetch('/api/mentors?action=update_member', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           member_id: memberId,
           role: newRole,
@@ -809,10 +807,9 @@ function AddNoteModal({
     if (!content.trim()) return;
     setSaving(true);
     try {
-      const response = await fetch('/api/mentors?action=add_note', {
+      const response = await authFetch('/api/mentors?action=add_note', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           team_id: teamId,
           content: content.trim(),
@@ -912,10 +909,9 @@ function AddRequestFromTeamModal({
     if (!form.title.trim()) return;
     setSaving(true);
     try {
-      const response = await fetch('/api/mentors?action=add_request', {
+      const response = await authFetch('/api/mentors?action=add_request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           title: form.title.trim(),
           description: form.description || undefined,

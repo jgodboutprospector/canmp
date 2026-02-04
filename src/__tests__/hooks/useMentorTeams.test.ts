@@ -2,14 +2,20 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { useVolunteers, useMentorTeams, useMentorTeam } from '@/lib/hooks/useMentorTeams';
 import { supabase } from '@/lib/supabase';
 
-// Mock supabase for useVolunteers (still uses direct Supabase)
+// Mock supabase for useVolunteers (still uses direct Supabase) and auth for authFetch
 jest.mock('@/lib/supabase', () => ({
   supabase: {
     from: jest.fn(),
+    auth: {
+      getSession: jest.fn(() => Promise.resolve({
+        data: { session: { access_token: 'test-token-123' } },
+        error: null,
+      })),
+    },
   },
 }));
 
-// Mock fetch for useMentorTeams and useMentorTeam (use API)
+// Mock fetch for useMentorTeams and useMentorTeam (use API via authFetch)
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
 
@@ -153,7 +159,10 @@ describe('useMentorTeams', () => {
     });
 
     expect(result.current.teams).toEqual(mockTeams);
-    expect(mockFetch).toHaveBeenCalledWith('/api/mentors', { credentials: 'include' });
+    expect(mockFetch).toHaveBeenCalledWith('/api/mentors', {
+      headers: { Authorization: 'Bearer test-token-123' },
+      credentials: 'include',
+    });
   });
 
   it('should handle API errors', async () => {
@@ -226,7 +235,7 @@ describe('useMentorTeams', () => {
 
     expect(mockFetch).toHaveBeenCalledWith('/api/mentors', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-token-123' },
       credentials: 'include',
       body: JSON.stringify({
         name: 'New Team',
@@ -258,7 +267,7 @@ describe('useMentorTeams', () => {
 
     expect(mockFetch).toHaveBeenCalledWith('/api/mentors?action=add_member', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-token-123' },
       credentials: 'include',
       body: JSON.stringify({
         team_id: 'team-1',
@@ -299,7 +308,10 @@ describe('useMentorTeam', () => {
     });
 
     expect(result.current.team).toEqual(mockTeam);
-    expect(mockFetch).toHaveBeenCalledWith('/api/mentors?id=team-1', { credentials: 'include' });
+    expect(mockFetch).toHaveBeenCalledWith('/api/mentors?id=team-1', {
+      headers: { Authorization: 'Bearer test-token-123' },
+      credentials: 'include',
+    });
   });
 
   it('should handle errors', async () => {
