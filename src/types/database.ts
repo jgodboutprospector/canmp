@@ -102,6 +102,11 @@ export interface Database {
         Insert: Omit<UserProfile, 'created_at' | 'updated_at'>;
         Update: Partial<UserProfile>;
       };
+      transportation_requests: {
+        Row: TransportationRequest;
+        Insert: Omit<TransportationRequest, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<TransportationRequest, 'id'>>;
+      };
     };
   };
 }
@@ -605,4 +610,87 @@ export interface VolunteerRequestType {
   skills_required: string[] | null;
   is_active: boolean;
   created_at: string;
+}
+
+// ============================================
+// Transportation Request Types (Mutual Aid)
+// ============================================
+
+export type TransportationRequestStatus = 'pending' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+export type TransportationUrgency = 'low' | 'medium' | 'high' | 'urgent';
+export type RecurrencePattern = 'weekly' | 'bi-weekly' | 'monthly';
+
+export interface TransportationRequest {
+  id: string;
+  title: string;
+  description: string | null;
+
+  // Links
+  household_id: string | null;
+  beneficiary_id: string | null;
+  mentor_team_id: string | null;
+  assigned_volunteer_id: string | null;
+
+  // Pickup Location
+  pickup_address_street: string | null;
+  pickup_address_city: string | null;
+  pickup_address_state: string | null;
+  pickup_address_zip: string | null;
+  pickup_notes: string | null;
+
+  // Dropoff Location
+  dropoff_address_street: string | null;
+  dropoff_address_city: string | null;
+  dropoff_address_state: string | null;
+  dropoff_address_zip: string | null;
+  dropoff_notes: string | null;
+
+  // Scheduling
+  request_date: string;
+  pickup_time: string | null;
+  estimated_return_time: string | null;
+
+  // Recurrence
+  is_recurring: boolean;
+  recurrence_pattern: RecurrencePattern | null;
+  recurrence_end_date: string | null;
+
+  // Status & Tracking
+  status: TransportationRequestStatus;
+  urgency: TransportationUrgency;
+
+  // Assignment Tracking
+  assigned_at: string | null;
+  assigned_by_id: string | null;
+
+  // Completion Tracking
+  completed_at: string | null;
+  completed_by_id: string | null;
+  completion_notes: string | null;
+  actual_pickup_time: string | null;
+  actual_dropoff_time: string | null;
+
+  // Special Requirements
+  needs_wheelchair_access: boolean;
+  needs_car_seat: boolean;
+  passenger_count: number;
+  special_instructions: string | null;
+
+  // Audit
+  created_by_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TransportationRequestWithRelations extends TransportationRequest {
+  household?: Household;
+  beneficiary?: Beneficiary;
+  mentor_team?: {
+    id: string;
+    name: string | null;
+  };
+  assigned_volunteer?: Volunteer;
+  assigned_by?: { id: string; first_name: string; last_name: string };
+  completed_by?: { id: string; first_name: string; last_name: string };
+  created_by?: { id: string; first_name: string; last_name: string };
 }
