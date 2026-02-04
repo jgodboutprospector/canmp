@@ -94,21 +94,21 @@ CREATE POLICY "Staff can insert transportation requests"
   ON transportation_requests FOR INSERT
   TO authenticated
   WITH CHECK (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'coordinator'))
+    EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('admin', 'coordinator'))
   );
 
 CREATE POLICY "Staff can update transportation requests"
   ON transportation_requests FOR UPDATE
   TO authenticated
   USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'coordinator'))
+    EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('admin', 'coordinator'))
   );
 
 CREATE POLICY "Staff can delete transportation requests"
   ON transportation_requests FOR DELETE
   TO authenticated
   USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'coordinator'))
+    EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('admin', 'coordinator'))
   );
 
 -- Create updated_at trigger
