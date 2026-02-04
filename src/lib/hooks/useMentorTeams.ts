@@ -78,7 +78,7 @@ export function useMentorTeams() {
   const fetchTeams = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/mentors');
+      const response = await fetch('/api/mentors', { credentials: 'include' });
       const result: ApiResponse<MentorTeamWithRelations[]> = await response.json();
 
       if (!result.success) {
@@ -108,6 +108,7 @@ export function useMentorTeams() {
     const response = await fetch('/api/mentors', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(data),
     });
 
@@ -124,6 +125,7 @@ export function useMentorTeams() {
     const response = await fetch('/api/mentors?action=add_member', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ team_id: teamId, volunteer_id: volunteerId, role }),
     });
 
@@ -140,6 +142,7 @@ export function useMentorTeams() {
     const response = await fetch('/api/mentors?action=update_member', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ member_id: memberId, ...updates }),
     });
 
@@ -155,6 +158,7 @@ export function useMentorTeams() {
   const removeMember = useCallback(async (memberId: string) => {
     const response = await fetch(`/api/mentors?id=${memberId}&type=member`, {
       method: 'DELETE',
+      credentials: 'include',
     });
 
     const result: ApiResponse = await response.json();
@@ -169,6 +173,7 @@ export function useMentorTeams() {
   const deleteTeam = useCallback(async (teamId: string) => {
     const response = await fetch(`/api/mentors?id=${teamId}`, {
       method: 'DELETE',
+      credentials: 'include',
     });
 
     const result: ApiResponse = await response.json();
@@ -203,7 +208,7 @@ export function useMentorTeam(id: string) {
 
     try {
       setLoading(true);
-      const response = await fetch(`/api/mentors?id=${id}`);
+      const response = await fetch(`/api/mentors?id=${id}`, { credentials: 'include' });
       const result: ApiResponse<MentorTeamWithRelations> = await response.json();
 
       if (!result.success) {

@@ -167,6 +167,7 @@ export function MentorTeamDetailModal({ teamId, isOpen, onClose, onUpdate }: Pro
       const response = await fetch('/api/mentors?action=add_member', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           team_id: teamId,
           volunteer_id: volunteerId,
@@ -195,6 +196,7 @@ export function MentorTeamDetailModal({ teamId, isOpen, onClose, onUpdate }: Pro
     try {
       const response = await fetch(`/api/mentors?id=${memberId}&type=member`, {
         method: 'DELETE',
+        credentials: 'include',
       });
 
       const result: ApiResponse = await response.json();
@@ -214,6 +216,7 @@ export function MentorTeamDetailModal({ teamId, isOpen, onClose, onUpdate }: Pro
       const response = await fetch('/api/mentors?action=update_member', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           member_id: memberId,
           role: newRole,
@@ -809,6 +812,7 @@ function AddNoteModal({
       const response = await fetch('/api/mentors?action=add_note', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           team_id: teamId,
           content: content.trim(),
@@ -911,6 +915,7 @@ function AddRequestFromTeamModal({
       const response = await fetch('/api/mentors?action=add_request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           title: form.title.trim(),
           description: form.description || undefined,

@@ -98,6 +98,7 @@ export function AddMentorTeamModal({ isOpen, onClose, onSuccess }: AddMentorTeam
       const response = await fetch('/api/mentors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           name: form.name.trim(),
           household_id: form.household_id,

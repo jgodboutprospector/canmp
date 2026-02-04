@@ -153,7 +153,7 @@ describe('useMentorTeams', () => {
     });
 
     expect(result.current.teams).toEqual(mockTeams);
-    expect(mockFetch).toHaveBeenCalledWith('/api/mentors');
+    expect(mockFetch).toHaveBeenCalledWith('/api/mentors', { credentials: 'include' });
   });
 
   it('should handle API errors', async () => {
@@ -227,6 +227,7 @@ describe('useMentorTeams', () => {
     expect(mockFetch).toHaveBeenCalledWith('/api/mentors', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({
         name: 'New Team',
         household_id: 'household-1',
@@ -258,6 +259,7 @@ describe('useMentorTeams', () => {
     expect(mockFetch).toHaveBeenCalledWith('/api/mentors?action=add_member', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({
         team_id: 'team-1',
         volunteer_id: 'volunteer-1',
@@ -297,7 +299,7 @@ describe('useMentorTeam', () => {
     });
 
     expect(result.current.team).toEqual(mockTeam);
-    expect(mockFetch).toHaveBeenCalledWith('/api/mentors?id=team-1');
+    expect(mockFetch).toHaveBeenCalledWith('/api/mentors?id=team-1', { credentials: 'include' });
   });
 
   it('should handle errors', async () => {
