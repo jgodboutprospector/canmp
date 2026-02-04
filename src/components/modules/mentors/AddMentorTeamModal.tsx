@@ -5,6 +5,7 @@ import { Modal } from '@/components/ui/Modal';
 import { supabase } from '@/lib/supabase';
 import { Loader2, X, UserPlus } from 'lucide-react';
 import type { Household, Volunteer } from '@/types/database';
+import type { ApiResponse } from '@/lib/api-server-utils';
 
 interface AddMentorTeamModalProps {
   isOpen: boolean;
@@ -94,34 +95,22 @@ export function AddMentorTeamModal({ isOpen, onClose, onSuccess }: AddMentorTeam
     setError('');
 
     try {
-      // Create the mentor team
-      const { data: team, error: teamError } = await (supabase as any)
-        .from('mentor_teams')
-        .insert({
+      const response = await fetch('/api/mentors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           name: form.name.trim(),
           household_id: form.household_id,
-          assigned_date: new Date().toISOString().split('T')[0],
-        })
-        .select()
-        .single();
+          lead_volunteer_id: form.lead_volunteer_id,
+          member_ids: form.member_ids,
+        }),
+      });
 
-      if (teamError) throw teamError;
+      const result: ApiResponse = await response.json();
 
-      // Add team members
-      const members = [
-        { team_id: team.id, volunteer_id: form.lead_volunteer_id, role: 'lead' },
-        ...form.member_ids.map((id) => ({
-          team_id: team.id,
-          volunteer_id: id,
-          role: 'member',
-        })),
-      ];
-
-      const { error: membersError } = await (supabase as any)
-        .from('mentor_team_members')
-        .insert(members);
-
-      if (membersError) throw membersError;
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to create mentor team');
+      }
 
       onSuccess();
       handleClose();

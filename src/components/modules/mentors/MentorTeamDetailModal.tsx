@@ -28,6 +28,7 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useVolunteerRequests, useRequestTypes, useVolunteers } from '@/lib/hooks/useVolunteers';
 import type { Volunteer, Beneficiary } from '@/types/database';
+import type { ApiResponse } from '@/lib/api-server-utils';
 
 interface MentorTeamMember {
   id: string;
@@ -163,15 +164,21 @@ export function MentorTeamDetailModal({ teamId, isOpen, onClose, onUpdate }: Pro
   async function addVolunteerToTeam(volunteerId: string, role: string = 'member') {
     setSaving(true);
     try {
-      const { error } = await (supabase as any).from('mentor_team_members').insert({
-        team_id: teamId,
-        volunteer_id: volunteerId,
-        role,
-        joined_date: new Date().toISOString().split('T')[0],
-        is_active: true,
+      const response = await fetch('/api/mentors?action=add_member', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          team_id: teamId,
+          volunteer_id: volunteerId,
+          role,
+        }),
       });
 
-      if (error) throw error;
+      const result: ApiResponse = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to add volunteer');
+      }
+
       await fetchTeam();
       onUpdate?.();
       setShowAddVolunteerModal(false);
@@ -186,12 +193,15 @@ export function MentorTeamDetailModal({ teamId, isOpen, onClose, onUpdate }: Pro
     if (!confirm('Are you sure you want to remove this volunteer from the team?')) return;
 
     try {
-      const { error } = await (supabase as any)
-        .from('mentor_team_members')
-        .update({ is_active: false })
-        .eq('id', memberId);
+      const response = await fetch(`/api/mentors?id=${memberId}&type=member`, {
+        method: 'DELETE',
+      });
 
-      if (error) throw error;
+      const result: ApiResponse = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to remove volunteer');
+      }
+
       await fetchTeam();
       onUpdate?.();
     } catch (err) {
@@ -201,12 +211,20 @@ export function MentorTeamDetailModal({ teamId, isOpen, onClose, onUpdate }: Pro
 
   async function updateMemberRole(memberId: string, newRole: string) {
     try {
-      const { error } = await (supabase as any)
-        .from('mentor_team_members')
-        .update({ role: newRole })
-        .eq('id', memberId);
+      const response = await fetch('/api/mentors?action=update_member', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          member_id: memberId,
+          role: newRole,
+        }),
+      });
 
-      if (error) throw error;
+      const result: ApiResponse = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update role');
+      }
+
       await fetchTeam();
       onUpdate?.();
     } catch (err) {
@@ -788,13 +806,21 @@ function AddNoteModal({
     if (!content.trim()) return;
     setSaving(true);
     try {
-      const { error } = await (supabase as any).from('mentor_team_notes').insert({
-        team_id: teamId,
-        content: content.trim(),
-        note_type: noteType,
+      const response = await fetch('/api/mentors?action=add_note', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          team_id: teamId,
+          content: content.trim(),
+          note_type: noteType,
+        }),
       });
 
-      if (error) throw error;
+      const result: ApiResponse = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to save note');
+      }
+
       onSave();
     } catch (err) {
       console.error('Error saving note:', err);
@@ -882,19 +908,26 @@ function AddRequestFromTeamModal({
     if (!form.title.trim()) return;
     setSaving(true);
     try {
-      const { error } = await (supabase as any).from('volunteer_requests').insert({
-        title: form.title.trim(),
-        description: form.description || null,
-        request_type: form.request_type || null,
-        urgency: form.urgency,
-        household_id: householdId,
-        beneficiary_id: form.beneficiary_id || null,
-        preferred_date: form.preferred_date || null,
-        mentor_team_id: teamId,
-        status: 'pending',
+      const response = await fetch('/api/mentors?action=add_request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: form.title.trim(),
+          description: form.description || undefined,
+          request_type: form.request_type || undefined,
+          urgency: form.urgency,
+          household_id: householdId,
+          beneficiary_id: form.beneficiary_id || undefined,
+          preferred_date: form.preferred_date || undefined,
+          mentor_team_id: teamId,
+        }),
       });
 
-      if (error) throw error;
+      const result: ApiResponse = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to create request');
+      }
+
       onSave();
     } catch (err) {
       console.error('Error creating request:', err);
