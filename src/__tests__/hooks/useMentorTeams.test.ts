@@ -2,11 +2,16 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { useVolunteers, useMentorTeams, useMentorTeam } from '@/lib/hooks/useMentorTeams';
 import { supabase } from '@/lib/supabase';
 
+// Mock supabase for useVolunteers (still uses direct Supabase)
 jest.mock('@/lib/supabase', () => ({
   supabase: {
     from: jest.fn(),
   },
 }));
+
+// Mock fetch for useMentorTeams and useMentorTeam (use API)
+const mockFetch = jest.fn();
+global.fetch = mockFetch;
 
 describe('useVolunteers', () => {
   const mockVolunteers = [
@@ -137,11 +142,8 @@ describe('useMentorTeams', () => {
   });
 
   it('should fetch mentor teams successfully', async () => {
-    const mockOrder = jest.fn(() => Promise.resolve({ data: mockTeams, error: null }));
-    const mockEq = jest.fn(() => ({ order: mockOrder }));
-    const mockSelect = jest.fn(() => ({ eq: mockEq }));
-    (supabase.from as jest.Mock).mockReturnValue({
-      select: mockSelect,
+    mockFetch.mockResolvedValueOnce({
+      json: () => Promise.resolve({ success: true, data: mockTeams }),
     });
 
     const { result } = renderHook(() => useMentorTeams());
@@ -151,67 +153,12 @@ describe('useMentorTeams', () => {
     });
 
     expect(result.current.teams).toEqual(mockTeams);
-    expect(supabase.from).toHaveBeenCalledWith('mentor_teams');
+    expect(mockFetch).toHaveBeenCalledWith('/api/mentors');
   });
 
-  it('should filter by active teams', async () => {
-    const mockOrder = jest.fn(() => Promise.resolve({ data: mockTeams, error: null }));
-    const mockEq = jest.fn(() => ({ order: mockOrder }));
-    const mockSelect = jest.fn(() => ({ eq: mockEq }));
-    (supabase.from as jest.Mock).mockReturnValue({
-      select: mockSelect,
-    });
-
-    renderHook(() => useMentorTeams());
-
-    await waitFor(() => {
-      expect(mockEq).toHaveBeenCalledWith('is_active', true);
-    });
-  });
-
-  it('should include household with beneficiaries and members', async () => {
-    const mockOrder = jest.fn(() => Promise.resolve({ data: mockTeams, error: null }));
-    const mockEq = jest.fn(() => ({ order: mockOrder }));
-    const mockSelect = jest.fn(() => ({ eq: mockEq }));
-    (supabase.from as jest.Mock).mockReturnValue({
-      select: mockSelect,
-    });
-
-    renderHook(() => useMentorTeams());
-
-    await waitFor(() => {
-      expect(mockSelect).toHaveBeenCalled();
-    });
-
-    const selectQuery = mockSelect.mock.calls[0][0];
-    expect(selectQuery).toContain('household:households');
-    expect(selectQuery).toContain('beneficiaries(*)');
-    expect(selectQuery).toContain('members:mentor_team_members');
-    expect(selectQuery).toContain('volunteer:volunteers');
-  });
-
-  it('should order by name', async () => {
-    const mockOrder = jest.fn(() => Promise.resolve({ data: mockTeams, error: null }));
-    const mockEq = jest.fn(() => ({ order: mockOrder }));
-    const mockSelect = jest.fn(() => ({ eq: mockEq }));
-    (supabase.from as jest.Mock).mockReturnValue({
-      select: mockSelect,
-    });
-
-    renderHook(() => useMentorTeams());
-
-    await waitFor(() => {
-      expect(mockOrder).toHaveBeenCalledWith('name');
-    });
-  });
-
-  it('should handle errors', async () => {
-    const mockError = new Error('Failed to fetch mentor teams');
-    const mockOrder = jest.fn(() => Promise.resolve({ data: null, error: mockError }));
-    const mockEq = jest.fn(() => ({ order: mockOrder }));
-    const mockSelect = jest.fn(() => ({ eq: mockEq }));
-    (supabase.from as jest.Mock).mockReturnValue({
-      select: mockSelect,
+  it('should handle API errors', async () => {
+    mockFetch.mockResolvedValueOnce({
+      json: () => Promise.resolve({ success: false, error: 'Failed to fetch mentor teams' }),
     });
 
     const { result } = renderHook(() => useMentorTeams());
@@ -223,12 +170,21 @@ describe('useMentorTeams', () => {
     expect(result.current.error).toBe('Failed to fetch mentor teams');
   });
 
+  it('should handle network errors', async () => {
+    mockFetch.mockRejectedValueOnce(new Error('Network error'));
+
+    const { result } = renderHook(() => useMentorTeams());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.error).toBe('Network error');
+  });
+
   it('should support refetch', async () => {
-    const mockOrder = jest.fn(() => Promise.resolve({ data: mockTeams, error: null }));
-    const mockEq = jest.fn(() => ({ order: mockOrder }));
-    const mockSelect = jest.fn(() => ({ eq: mockEq }));
-    (supabase.from as jest.Mock).mockReturnValue({
-      select: mockSelect,
+    mockFetch.mockResolvedValue({
+      json: () => Promise.resolve({ success: true, data: mockTeams }),
     });
 
     const { result } = renderHook(() => useMentorTeams());
@@ -237,10 +193,76 @@ describe('useMentorTeams', () => {
       expect(result.current.loading).toBe(false);
     });
 
-    result.current.refetch();
+    await result.current.refetch();
 
     await waitFor(() => {
-      expect(mockSelect).toHaveBeenCalledTimes(2);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('should provide createTeam function', async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve({ success: true, data: mockTeams }),
+      })
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve({ success: true, data: mockTeams[0] }),
+      })
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve({ success: true, data: mockTeams }),
+      });
+
+    const { result } = renderHook(() => useMentorTeams());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    await result.current.createTeam({
+      name: 'New Team',
+      household_id: 'household-1',
+      lead_volunteer_id: 'volunteer-1',
+    });
+
+    expect(mockFetch).toHaveBeenCalledWith('/api/mentors', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'New Team',
+        household_id: 'household-1',
+        lead_volunteer_id: 'volunteer-1',
+      }),
+    });
+  });
+
+  it('should provide addMember function', async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve({ success: true, data: mockTeams }),
+      })
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve({ success: true, data: {} }),
+      })
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve({ success: true, data: mockTeams }),
+      });
+
+    const { result } = renderHook(() => useMentorTeams());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    await result.current.addMember('team-1', 'volunteer-1', 'member');
+
+    expect(mockFetch).toHaveBeenCalledWith('/api/mentors?action=add_member', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        team_id: 'team-1',
+        volunteer_id: 'volunteer-1',
+        role: 'member',
+      }),
     });
   });
 });
@@ -264,11 +286,8 @@ describe('useMentorTeam', () => {
   });
 
   it('should fetch single mentor team successfully', async () => {
-    const mockSingle = jest.fn(() => Promise.resolve({ data: mockTeam, error: null }));
-    const mockEq = jest.fn(() => ({ single: mockSingle }));
-    const mockSelect = jest.fn(() => ({ eq: mockEq }));
-    (supabase.from as jest.Mock).mockReturnValue({
-      select: mockSelect,
+    mockFetch.mockResolvedValueOnce({
+      json: () => Promise.resolve({ success: true, data: mockTeam }),
     });
 
     const { result } = renderHook(() => useMentorTeam('team-1'));
@@ -278,16 +297,12 @@ describe('useMentorTeam', () => {
     });
 
     expect(result.current.team).toEqual(mockTeam);
-    expect(mockEq).toHaveBeenCalledWith('id', 'team-1');
+    expect(mockFetch).toHaveBeenCalledWith('/api/mentors?id=team-1');
   });
 
   it('should handle errors', async () => {
-    const mockError = new Error('Team not found');
-    const mockSingle = jest.fn(() => Promise.resolve({ data: null, error: mockError }));
-    const mockEq = jest.fn(() => ({ single: mockSingle }));
-    const mockSelect = jest.fn(() => ({ eq: mockEq }));
-    (supabase.from as jest.Mock).mockReturnValue({
-      select: mockSelect,
+    mockFetch.mockResolvedValueOnce({
+      json: () => Promise.resolve({ success: false, error: 'Team not found' }),
     });
 
     const { result } = renderHook(() => useMentorTeam('999'));
@@ -299,14 +314,29 @@ describe('useMentorTeam', () => {
     expect(result.current.error).toBe('Team not found');
   });
 
-  it('should not fetch when id is empty', () => {
-    const mockSelect = jest.fn();
-    (supabase.from as jest.Mock).mockReturnValue({
-      select: mockSelect,
+  it('should not fetch when id is empty', async () => {
+    const { result } = renderHook(() => useMentorTeam(''));
+
+    // Should remain in initial state
+    expect(result.current.team).toBeNull();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('should support refetch', async () => {
+    mockFetch.mockResolvedValue({
+      json: () => Promise.resolve({ success: true, data: mockTeam }),
     });
 
-    renderHook(() => useMentorTeam(''));
+    const { result } = renderHook(() => useMentorTeam('team-1'));
 
-    expect(mockSelect).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    await result.current.refetch();
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
   });
 });
