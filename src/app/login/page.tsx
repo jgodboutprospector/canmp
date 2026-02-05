@@ -4,12 +4,14 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Heart, Loader2, Mail, Lock, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent) {
@@ -117,9 +119,13 @@ export default function LoginPage() {
                 />
                 <span className="ml-2 text-sm text-gray-600">Remember me</span>
               </label>
-              <a href="#" className="text-sm text-canmp-green-600 hover:text-canmp-green-700">
+              <button
+                type="button"
+                onClick={() => setShowForgotPassword(true)}
+                className="text-sm text-canmp-green-600 hover:text-canmp-green-700"
+              >
                 Forgot password?
-              </a>
+              </button>
             </div>
 
             <button
@@ -152,6 +158,12 @@ export default function LoginPage() {
           Central Area New Mainer Project © {new Date().getFullYear()}
         </p>
       </div>
+
+      {/* Forgot Password Modal */}
+      <ForgotPasswordModal
+        isOpen={showForgotPassword}
+        onClose={() => setShowForgotPassword(false)}
+      />
     </div>
   );
 }
