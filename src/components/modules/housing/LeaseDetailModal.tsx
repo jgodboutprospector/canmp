@@ -355,12 +355,14 @@ export function LeaseDetailModal({ isOpen, onClose, leaseId, onDelete }: LeaseDe
   async function deleteLease() {
     setDeleting(true);
     try {
-      const { error } = await (supabase as any)
-        .from('leases')
-        .delete()
-        .eq('id', leaseId);
+      const response = await fetch(`/api/housing?type=leases&id=${leaseId}`, {
+        method: 'DELETE',
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to terminate lease');
+      }
 
       onClose();
       onDelete?.();
@@ -823,28 +825,29 @@ export function LeaseDetailModal({ isOpen, onClose, leaseId, onDelete }: LeaseDe
             <div className="flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
-                <h4 className="font-medium text-red-800">Delete Lease?</h4>
+                <h4 className="font-medium text-red-800">Terminate Lease?</h4>
                 <p className="text-sm text-red-600 mt-1">
-                  This will permanently delete this lease for {lease.household?.name || 'this household'} and all associated rent records. This action cannot be undone.
+                  This will mark this lease for {lease.household?.name || 'this household'} as terminated. The lease record and rent history will be preserved.
                 </p>
                 <div className="flex gap-2 mt-3">
                   <button
                     onClick={() => setShowDeleteConfirm(false)}
-                    className="px-3 py-1.5 text-sm bg-white text-gray-700 rounded border border-gray-300 hover:bg-gray-50"
+                    disabled={deleting}
+                    className="px-3 py-1.5 text-sm bg-white text-gray-700 rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={deleteLease}
                     disabled={deleting}
-                    className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-1"
+                    className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-1 disabled:opacity-50"
                   >
                     {deleting ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
                       <Trash2 className="w-4 h-4" />
                     )}
-                    Delete Lease
+                    {deleting ? 'Terminating...' : 'Terminate Lease'}
                   </button>
                 </div>
               </div>

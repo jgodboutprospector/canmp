@@ -94,32 +94,57 @@ export function AddPropertyModal({ isOpen, onClose, onSuccess }: AddPropertyModa
     setError('');
 
     try {
-      const { error } = await (supabase as any).from('properties').insert({
-        name: form.name.trim(),
-        address_street: form.address_street.trim(),
-        address_city: form.address_city.trim(),
-        address_state: form.address_state,
-        address_zip: form.address_zip.trim() || null,
-        property_type: form.property_type,
-        total_units: form.total_units,
-        site_id: form.site_id || null,
-        landlord_name: form.property_type === 'master_lease' ? form.landlord_name.trim() || null : null,
-        landlord_phone: form.property_type === 'master_lease' ? form.landlord_phone.trim() || null : null,
-        landlord_email: form.property_type === 'master_lease' ? form.landlord_email.trim() || null : null,
-        master_lease_rent: form.property_type === 'master_lease' && form.master_lease_rent
-          ? parseFloat(form.master_lease_rent)
-          : null,
-        master_lease_start: form.property_type === 'master_lease' && form.master_lease_start
-          ? form.master_lease_start
-          : null,
-        master_lease_end: form.property_type === 'master_lease' && form.master_lease_end
-          ? form.master_lease_end
-          : null,
-        notes: form.notes.trim() || null,
-        is_active: true,
-      });
+      // Create the property
+      const { data: property, error: propertyError } = await (supabase as any)
+        .from('properties')
+        .insert({
+          name: form.name.trim(),
+          address_street: form.address_street.trim(),
+          address_city: form.address_city.trim(),
+          address_state: form.address_state,
+          address_zip: form.address_zip.trim() || null,
+          property_type: form.property_type,
+          total_units: form.total_units,
+          site_id: form.site_id || null,
+          landlord_name: form.property_type === 'master_lease' ? form.landlord_name.trim() || null : null,
+          landlord_phone: form.property_type === 'master_lease' ? form.landlord_phone.trim() || null : null,
+          landlord_email: form.property_type === 'master_lease' ? form.landlord_email.trim() || null : null,
+          master_lease_rent: form.property_type === 'master_lease' && form.master_lease_rent
+            ? parseFloat(form.master_lease_rent)
+            : null,
+          master_lease_start: form.property_type === 'master_lease' && form.master_lease_start
+            ? form.master_lease_start
+            : null,
+          master_lease_end: form.property_type === 'master_lease' && form.master_lease_end
+            ? form.master_lease_end
+            : null,
+          notes: form.notes.trim() || null,
+          is_active: true,
+        })
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (propertyError) throw propertyError;
+
+      // Auto-create unit records for the property
+      if (property && form.total_units > 0) {
+        const units = Array.from({ length: form.total_units }, (_, i) => ({
+          property_id: property.id,
+          unit_number: String(i + 1),
+          bedrooms: 1,
+          bathrooms: 1,
+          status: 'available',
+        }));
+
+        const { error: unitsError } = await (supabase as any)
+          .from('units')
+          .insert(units);
+
+        if (unitsError) {
+          console.error('Error creating units:', unitsError);
+          // Don't fail the whole operation - property was created successfully
+        }
+      }
 
       onSuccess();
       handleClose();

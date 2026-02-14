@@ -181,12 +181,14 @@ export function WorkOrderDetailModal({ isOpen, onClose, workOrderId, onDelete, o
   async function deleteWorkOrder() {
     setDeleting(true);
     try {
-      const { error } = await (supabase as any)
-        .from('work_orders')
-        .delete()
-        .eq('id', workOrderId);
+      const response = await fetch(`/api/housing?type=work-orders&id=${workOrderId}`, {
+        method: 'DELETE',
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to cancel work order');
+      }
 
       onClose();
       onDelete?.();
@@ -483,28 +485,29 @@ export function WorkOrderDetailModal({ isOpen, onClose, workOrderId, onDelete, o
             <div className="flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
-                <h4 className="font-medium text-red-800">Delete Work Order?</h4>
+                <h4 className="font-medium text-red-800">Cancel Work Order?</h4>
                 <p className="text-sm text-red-600 mt-1">
-                  This will permanently delete this work order. This action cannot be undone.
+                  This will mark this work order as cancelled. The record will be preserved for reference.
                 </p>
                 <div className="flex gap-2 mt-3">
                   <button
                     onClick={() => setShowDeleteConfirm(false)}
-                    className="px-3 py-1.5 text-sm bg-white text-gray-700 rounded border border-gray-300 hover:bg-gray-50"
+                    disabled={deleting}
+                    className="px-3 py-1.5 text-sm bg-white text-gray-700 rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-50"
                   >
-                    Cancel
+                    Keep Open
                   </button>
                   <button
                     onClick={deleteWorkOrder}
                     disabled={deleting}
-                    className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-1"
+                    className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-1 disabled:opacity-50"
                   >
                     {deleting ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
                       <Trash2 className="w-4 h-4" />
                     )}
-                    Delete
+                    {deleting ? 'Cancelling...' : 'Cancel Work Order'}
                   </button>
                 </div>
               </div>
