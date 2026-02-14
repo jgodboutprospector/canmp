@@ -620,7 +620,7 @@ export async function syncAllFromNeon(): Promise<FullSyncResult> {
       .from('neon_sync_log')
       .update({
         completed_at: new Date().toISOString(),
-        status: allErrors.length > 0 ? 'completed' : 'completed',
+        status: allErrors.length > 0 ? 'completed_with_errors' : 'completed',
         records_fetched: result.totalFetched,
         records_created: result.totalCreated,
         records_updated: result.totalUpdated,
