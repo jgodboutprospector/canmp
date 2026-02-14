@@ -55,4 +55,5 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 # RSA PKCS#1 v1.5 decryption for Aplos API is now isolated in the aplos-sidecar container
-CMD ["node", "server.js"]
+# Explicit heap limit: 2GB of the 3GB container limit, leaving room for native heap + OS overhead
+CMD ["node", "--max-old-space-size=2048", "server.js"]

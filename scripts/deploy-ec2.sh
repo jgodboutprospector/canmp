@@ -8,7 +8,7 @@ set -e
 # Configuration
 APP_NAME="canmp"
 REGION="us-east-1"
-INSTANCE_TYPE="t3.small"  # ~$15/month
+INSTANCE_TYPE="t3.medium"  # 4GB RAM, ~$30/month
 KEY_NAME="canmp-key"
 SECURITY_GROUP="canmp-sg"
 AMI_ID="ami-0c7217cdde317cfec"  # Ubuntu 22.04 LTS in us-east-1
@@ -166,5 +166,5 @@ echo "3. Clone your repository"
 echo "4. Set up environment variables"
 echo "5. Start the application"
 echo ""
-echo "Estimated monthly cost: ~\$15-20"
+echo "Estimated monthly cost: ~\$30-35"
 echo "============================================"
