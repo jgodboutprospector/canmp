@@ -16,14 +16,21 @@ export async function POST(request: Request) {
     const authHeader = request.headers.get('authorization');
     const expectedKey = process.env.SYNC_API_KEY;
 
-    if (expectedKey) {
-      const providedKey = authHeader?.replace('Bearer ', '');
-      if (!secureCompare(providedKey, expectedKey)) {
-        return NextResponse.json(
-          { error: 'Unauthorized' },
-          { status: 401 }
-        );
-      }
+    if (!expectedKey) {
+      // Fail closed: if SYNC_API_KEY is not configured, reject all requests
+      console.error('SYNC_API_KEY not configured — rejecting sync request');
+      return NextResponse.json(
+        { error: 'Sync endpoint not configured' },
+        { status: 503 }
+      );
+    }
+
+    const providedKey = authHeader?.replace('Bearer ', '');
+    if (!secureCompare(providedKey, expectedKey)) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
     }
 
     // Get sync type from request body
@@ -62,30 +69,9 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
-  return NextResponse.json({
-    endpoint: '/api/sync/neon',
-    methods: ['POST'],
-    description: 'Sync data from Neon CRM to Supabase',
-    headers: {
-      'Authorization': 'Bearer <SYNC_API_KEY>',
-      'Content-Type': 'application/json',
-    },
-    body: {
-      type: 'full | accounts | companies | events | opportunities',
-    },
-    syncTypes: {
-      full: 'Sync all data (accounts, companies, events, opportunities)',
-      accounts: 'Sync individual accounts only',
-      companies: 'Sync company accounts only',
-      events: 'Sync events from Neon CRM',
-      opportunities: 'Sync volunteer opportunities',
-    },
-    tables: {
-      neon_accounts: 'Individual accounts from Neon CRM',
-      neon_companies: 'Company/organization accounts',
-      neon_events: 'Events from Neon CRM',
-      neon_volunteer_opportunities: 'Volunteer opportunities',
-      neon_sync_log: 'Sync operation logs',
-    },
-  });
+  // Don't expose internal API documentation to unauthenticated users
+  return NextResponse.json(
+    { error: 'Method not allowed' },
+    { status: 405 }
+  );
 }

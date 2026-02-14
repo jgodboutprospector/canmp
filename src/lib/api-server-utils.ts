@@ -408,7 +408,32 @@ export interface AuditLogInput {
   metadata?: Record<string, unknown>;
 }
 
-// This will be implemented to use the audit_log table
+// Fields containing PII that should be masked in audit logs
+const PII_FIELDS = new Set([
+  'first_name', 'last_name', 'firstName', 'lastName',
+  'email', 'phone', 'phone_number',
+  'date_of_birth', 'dob', 'dateOfBirth',
+  'address', 'street', 'address_line_1', 'address_line_2',
+  'ssn', 'social_security',
+  'donor_email', 'donor_name', 'donorEmail', 'donorName',
+  'password',
+]);
+
+function maskPiiFields(
+  obj: Record<string, unknown> | null | undefined
+): Record<string, unknown> | null {
+  if (!obj) return null;
+  const masked: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (PII_FIELDS.has(key) && value != null && value !== '') {
+      masked[key] = '[REDACTED]';
+    } else {
+      masked[key] = value;
+    }
+  }
+  return masked;
+}
+
 export async function createAuditLog(
   supabase: any,
   input: AuditLogInput
@@ -419,8 +444,8 @@ export async function createAuditLog(
       action: input.action,
       entity_type: input.entityType,
       entity_id: input.entityId,
-      old_value: input.oldValue || null,
-      new_value: input.newValue || null,
+      old_value: maskPiiFields(input.oldValue),
+      new_value: maskPiiFields(input.newValue),
       metadata: input.metadata || null,
     });
   } catch (error) {
