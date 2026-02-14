@@ -81,6 +81,7 @@ describe('useDonations', () => {
     await waitFor(() => {
       expect(mockAuthFetch).toHaveBeenCalledWith(
         expect.stringContaining('category=furniture'),
+        expect.anything(),
       );
     });
   });
@@ -95,6 +96,7 @@ describe('useDonations', () => {
     await waitFor(() => {
       expect(mockAuthFetch).toHaveBeenCalledWith(
         expect.stringContaining('status=available'),
+        expect.anything(),
       );
     });
   });
@@ -109,6 +111,7 @@ describe('useDonations', () => {
     await waitFor(() => {
       expect(mockAuthFetch).toHaveBeenCalledWith(
         expect.stringContaining('search=sofa'),
+        expect.anything(),
       );
     });
   });
@@ -266,6 +269,7 @@ describe('useDonations', () => {
     await waitFor(() => {
       expect(mockAuthFetch).toHaveBeenCalledWith(
         expect.stringContaining('include_inactive=true'),
+        expect.anything(),
       );
     });
   });

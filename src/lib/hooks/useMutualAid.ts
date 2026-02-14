@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { authFetch } from '@/lib/api-client';
 import type { TransportationRequestWithRelations, TransportationRequestStatus } from '@/types/database';
 import type { ApiResponse } from '@/lib/api-server-utils';
@@ -22,8 +22,13 @@ export function useTransportationRequests(options: UseTransportationRequestsOpti
   const [requests, setRequests] = useState<TransportationRequestWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchRequests = useCallback(async () => {
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       setLoading(true);
       const params = new URLSearchParams();
@@ -35,8 +40,10 @@ export function useTransportationRequests(options: UseTransportationRequestsOpti
       if (options.toDate) params.set('to_date', options.toDate);
 
       const url = `/api/mutual-aid${params.toString() ? `?${params.toString()}` : ''}`;
-      const response = await authFetch(url);
+      const response = await authFetch(url, { signal: controller.signal });
       const result: ApiResponse<TransportationRequestWithRelations[]> = await response.json();
+
+      if (controller.signal.aborted) return;
 
       if (!result.success) {
         throw new Error(result.error || 'Failed to fetch transportation requests');
@@ -45,14 +52,18 @@ export function useTransportationRequests(options: UseTransportationRequestsOpti
       setRequests(result.data || []);
       setError(null);
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : 'Failed to fetch transportation requests');
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
   }, [options.status, options.householdId, options.volunteerId, options.mentorTeamId, options.fromDate, options.toDate]);
 
   useEffect(() => {
     fetchRequests();
+    return () => { abortControllerRef.current?.abort(); };
   }, [fetchRequests]);
 
   const createRequest = useCallback(async (data: {

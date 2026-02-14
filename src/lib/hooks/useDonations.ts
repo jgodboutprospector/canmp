@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { DonationCategory, DonationStatus, DonationPhoto } from '@/types/database';
 import { authFetch } from '@/lib/api-client';
 
@@ -82,9 +82,17 @@ export function useDonations(initialFilters?: DonationFilters) {
     ...initialFilters,
   });
   const [pagination, setPagination] = useState<PaginationInfo | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchItems = useCallback(async (newFilters?: DonationFilters) => {
     const activeFilters = newFilters || filters;
+
+    // Cancel any in-flight fetch so stale responses never overwrite fresh data
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
     setError(null);
 
@@ -111,8 +119,10 @@ export function useDonations(initialFilters?: DonationFilters) {
       }
 
       const url = `/api/donations${params.toString() ? `?${params}` : ''}`;
-      const response = await authFetch(url);
+      const response = await authFetch(url, { signal: controller.signal });
       const result = await response.json();
+
+      if (controller.signal.aborted) return;
 
       if (result.success) {
         setItems(result.data || []);
@@ -123,15 +133,19 @@ export function useDonations(initialFilters?: DonationFilters) {
         setError(result.error || 'Failed to fetch donations');
       }
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       setError('Failed to connect to API');
       console.error('Donations API error:', err);
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
   }, [filters]);
 
   useEffect(() => {
     fetchItems();
+    return () => { abortControllerRef.current?.abort(); };
   }, [fetchItems]);
 
   const createItem = useCallback(async (input: CreateDonationInput): Promise<DonationItem | null> => {
@@ -212,9 +226,16 @@ export function useDonations(initialFilters?: DonationFilters) {
     if (!('page' in newFilters)) {
       merged.page = 1;
     }
-    setFilters(merged);
-    fetchItems(merged);
-  }, [filters, fetchItems]);
+
+    // Debounce search input (300ms) to avoid request flood while typing.
+    // Non-search filter changes apply immediately.
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    if ('search' in newFilters) {
+      debounceTimerRef.current = setTimeout(() => setFilters(merged), 300);
+    } else {
+      setFilters(merged);
+    }
+  }, [filters]);
 
   const goToPage = useCallback((page: number) => {
     updateFilters({ page });

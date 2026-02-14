@@ -69,7 +69,7 @@ describe('useTasksData', () => {
     renderHook(() => useTasks({ status: 'todo' }));
 
     await waitFor(() => {
-      expect(mockAuthFetch).toHaveBeenCalledWith(expect.stringContaining('status=todo'));
+      expect(mockAuthFetch).toHaveBeenCalledWith(expect.stringContaining('status=todo'), expect.anything());
     });
   });
 
@@ -81,7 +81,7 @@ describe('useTasksData', () => {
     renderHook(() => useTasks({ assignee_id: 'user-1' }));
 
     await waitFor(() => {
-      expect(mockAuthFetch).toHaveBeenCalledWith(expect.stringContaining('assignee_id=user-1'));
+      expect(mockAuthFetch).toHaveBeenCalledWith(expect.stringContaining('assignee_id=user-1'), expect.anything());
     });
   });
 

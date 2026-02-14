@@ -159,10 +159,10 @@ describe('useMentorTeams', () => {
     });
 
     expect(result.current.teams).toEqual(mockTeams);
-    expect(mockFetch).toHaveBeenCalledWith('/api/mentors', {
-      headers: { Authorization: 'Bearer test-token-123' },
+    expect(mockFetch).toHaveBeenCalledWith('/api/mentors', expect.objectContaining({
+      headers: expect.objectContaining({ Authorization: 'Bearer test-token-123' }),
       credentials: 'include',
-    });
+    }));
   });
 
   it('should handle API errors', async () => {
@@ -233,16 +233,16 @@ describe('useMentorTeams', () => {
       lead_volunteer_id: 'volunteer-1',
     });
 
-    expect(mockFetch).toHaveBeenCalledWith('/api/mentors', {
+    expect(mockFetch).toHaveBeenCalledWith('/api/mentors', expect.objectContaining({
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-token-123' },
+      headers: expect.objectContaining({ 'Content-Type': 'application/json', Authorization: 'Bearer test-token-123' }),
       credentials: 'include',
       body: JSON.stringify({
         name: 'New Team',
         household_id: 'household-1',
         lead_volunteer_id: 'volunteer-1',
       }),
-    });
+    }));
   });
 
   it('should provide addMember function', async () => {
@@ -265,16 +265,16 @@ describe('useMentorTeams', () => {
 
     await result.current.addMember('team-1', 'volunteer-1', 'member');
 
-    expect(mockFetch).toHaveBeenCalledWith('/api/mentors?action=add_member', {
+    expect(mockFetch).toHaveBeenCalledWith('/api/mentors?action=add_member', expect.objectContaining({
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-token-123' },
+      headers: expect.objectContaining({ 'Content-Type': 'application/json', Authorization: 'Bearer test-token-123' }),
       credentials: 'include',
       body: JSON.stringify({
         team_id: 'team-1',
         volunteer_id: 'volunteer-1',
         role: 'member',
       }),
-    });
+    }));
   });
 });
 
@@ -308,10 +308,10 @@ describe('useMentorTeam', () => {
     });
 
     expect(result.current.team).toEqual(mockTeam);
-    expect(mockFetch).toHaveBeenCalledWith('/api/mentors?id=team-1', {
-      headers: { Authorization: 'Bearer test-token-123' },
+    expect(mockFetch).toHaveBeenCalledWith('/api/mentors?id=team-1', expect.objectContaining({
+      headers: expect.objectContaining({ Authorization: 'Bearer test-token-123' }),
       credentials: 'include',
-    });
+    }));
   });
 
   it('should handle errors', async () => {

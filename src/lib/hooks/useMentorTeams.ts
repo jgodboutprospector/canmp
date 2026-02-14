@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { authFetch } from '@/lib/api-client';
 import type { Volunteer, Household, Beneficiary } from '@/types/database';
@@ -75,12 +75,19 @@ export function useMentorTeams() {
   const [teams, setTeams] = useState<MentorTeamWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchTeams = useCallback(async () => {
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       setLoading(true);
-      const response = await authFetch('/api/mentors');
+      const response = await authFetch('/api/mentors', { signal: controller.signal });
       const result: ApiResponse<MentorTeamWithRelations[]> = await response.json();
+
+      if (controller.signal.aborted) return;
 
       if (!result.success) {
         throw new Error(result.error || 'Failed to fetch mentor teams');
@@ -89,14 +96,18 @@ export function useMentorTeams() {
       setTeams(result.data || []);
       setError(null);
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : 'Failed to fetch mentor teams');
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     fetchTeams();
+    return () => { abortControllerRef.current?.abort(); };
   }, [fetchTeams]);
 
   const createTeam = useCallback(async (data: {

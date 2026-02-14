@@ -99,7 +99,7 @@ describe('DonationsPage API Integration', () => {
     render(<DonationsPage />);
 
     await waitFor(() => {
-      expect(mockAuthFetch).toHaveBeenCalledWith(expect.stringContaining('/api/donations'));
+      expect(mockAuthFetch).toHaveBeenCalledWith(expect.stringContaining('/api/donations'), expect.anything());
     });
   });
 });

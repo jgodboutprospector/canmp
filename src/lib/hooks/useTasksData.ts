@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { authFetch } from '@/lib/api-client';
 
 export type TaskStatus = 'backlog' | 'todo' | 'in_progress' | 'review' | 'done';
@@ -102,8 +102,14 @@ export function useTasks(filters?: TaskFilters) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState<PaginationInfo | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchTasks = useCallback(async () => {
+    // Cancel any in-flight fetch so stale responses never overwrite fresh data
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
     setError(null);
 
@@ -122,8 +128,13 @@ export function useTasks(filters?: TaskFilters) {
       if (filters?.page) params.append('page', String(filters.page));
       if (filters?.limit) params.append('limit', String(filters.limit));
 
-      const response = await authFetch(`/api/tasks?${params}`);
+      const response = await authFetch(`/api/tasks?${params}`, {
+        signal: controller.signal,
+      });
       const result = await response.json();
+
+      // Don't update state if this request was aborted (a newer one is in flight)
+      if (controller.signal.aborted) return;
 
       if (result.success) {
         setTasks(result.data || []);
@@ -134,10 +145,14 @@ export function useTasks(filters?: TaskFilters) {
         setError(result.error || 'Failed to fetch tasks');
       }
     } catch (err) {
+      // Ignore abort errors — they're expected when filters change rapidly
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       setError('Failed to connect to API');
       console.error('Tasks API error:', err);
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
   }, [filters?.status, filters?.assignee_id, filters?.beneficiary_id, filters?.volunteer_id,
       filters?.class_section_id, filters?.event_id, filters?.property_id,
@@ -146,6 +161,7 @@ export function useTasks(filters?: TaskFilters) {
 
   useEffect(() => {
     fetchTasks();
+    return () => { abortControllerRef.current?.abort(); };
   }, [fetchTasks]);
 
   const createTask = useCallback(async (input: CreateTaskInput): Promise<Task | null> => {
