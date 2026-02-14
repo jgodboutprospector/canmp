@@ -163,11 +163,11 @@ describe('Rate Limiter - Write vs Read Limits', () => {
 });
 
 describe('Rate Limiter - Store Cleanup', () => {
-  it('should clean up expired entries when store exceeds 10000', () => {
+  it('should clean up expired entries when store exceeds max size', () => {
     const config: RateLimitConfig = { windowMs: 1_000, maxRequests: 1 };
 
-    // Fill the store with 10001 entries
-    for (let i = 0; i < 10_001; i++) {
+    // Fill the store past the 1000-entry threshold
+    for (let i = 0; i < 1_001; i++) {
       _checkRateLimit(`user:cleanup-${i}`, config);
     }
 
@@ -175,9 +175,32 @@ describe('Rate Limiter - Store Cleanup', () => {
     const originalNow = Date.now;
     Date.now = jest.fn().mockReturnValue(originalNow() + 2_000);
 
-    // Next request triggers cleanup
+    // Next request triggers cleanup (store size > MAX_STORE_SIZE)
     const result = _checkRateLimit('user:after-cleanup', config);
     expect(result.allowed).toBe(true);
+
+    Date.now = originalNow;
+  });
+
+  it('should clean up expired entries periodically even under threshold', () => {
+    const config: RateLimitConfig = { windowMs: 1_000, maxRequests: 1 };
+    const mod = jest.requireActual('@/lib/api-server-utils') as typeof import('@/lib/api-server-utils');
+
+    // Add a few entries
+    for (let i = 0; i < 5; i++) {
+      _checkRateLimit(`user:periodic-${i}`, config);
+    }
+
+    // Advance time past both the window and the 60s cleanup interval
+    const originalNow = Date.now;
+    Date.now = jest.fn().mockReturnValue(originalNow() + 61_000);
+
+    // This triggers periodic cleanup even though store is small
+    _checkRateLimit('user:trigger-cleanup', config);
+
+    // The expired entries should have been cleaned up
+    // Only the new entry should remain
+    expect(mod.rateLimitStore.size).toBe(1);
 
     Date.now = originalNow;
   });

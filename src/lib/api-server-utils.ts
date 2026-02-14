@@ -100,7 +100,24 @@ interface RateLimitEntry {
 }
 
 // In-memory rate limit store (use Redis in production for multi-instance)
-const rateLimitStore = new Map<string, RateLimitEntry>();
+export const rateLimitStore = new Map<string, RateLimitEntry>();
+
+// Periodic cleanup: sweep expired entries every 60 seconds
+let lastCleanup = 0;
+const CLEANUP_INTERVAL_MS = 60_000;
+const MAX_STORE_SIZE = 1000;
+
+function cleanupExpiredEntries(now: number) {
+  if (now - lastCleanup < CLEANUP_INTERVAL_MS && rateLimitStore.size < MAX_STORE_SIZE) {
+    return;
+  }
+  lastCleanup = now;
+  for (const [k, v] of rateLimitStore.entries()) {
+    if (v.resetAt < now) {
+      rateLimitStore.delete(k);
+    }
+  }
+}
 
 export interface RateLimitConfig {
   windowMs: number;  // Time window in milliseconds
@@ -118,19 +135,13 @@ export function checkRateLimit(
 ): { allowed: boolean; remaining: number; resetAt: number } {
   const now = Date.now();
   const key = identifier;
+
+  cleanupExpiredEntries(now);
+
   const entry = rateLimitStore.get(key);
 
-  // Clean up expired entries periodically
-  if (rateLimitStore.size > 10000) {
-    for (const [k, v] of rateLimitStore.entries()) {
-      if (v.resetAt < now) {
-        rateLimitStore.delete(k);
-      }
-    }
-  }
-
   if (!entry || entry.resetAt < now) {
-    // New window
+    // New window (delete stale entry if present)
     const newEntry: RateLimitEntry = {
       count: 1,
       resetAt: now + config.windowMs,
