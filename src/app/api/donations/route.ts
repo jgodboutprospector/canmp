@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireAuthFromRequest } from '@/lib/auth-server';
-import { createDonationSchema, searchParamSchema } from '@/lib/validation/schemas';
+import { createDonationSchema, searchParamSchema, uuidSchema } from '@/lib/validation/schemas';
 import {
   successResponse,
   errorResponse,
@@ -178,11 +178,13 @@ export async function PATCH(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
     const body = await request.json();
-    const { id, ...updateData } = body;
+    const { id: rawId, ...updateData } = body;
 
-    if (!id) {
+    if (!rawId) {
       return errorResponse('Donation ID is required', 400, 'MISSING_ID');
     }
+
+    const id = uuidSchema.parse(rawId);
 
     // Fetch current state for audit log
     const { data: oldData } = await (supabase as any)
@@ -238,11 +240,13 @@ export async function DELETE(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const rawId = searchParams.get('id');
 
-    if (!id) {
+    if (!rawId) {
       return errorResponse('Donation ID is required', 400, 'MISSING_ID');
     }
+
+    const id = uuidSchema.parse(rawId);
 
     // Fetch current state for audit log
     const { data: oldData } = await (supabase as any)

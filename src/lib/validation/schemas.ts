@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+// Reusable UUID validator for entity IDs
+export const uuidSchema = z.string().uuid('Invalid ID format');
+
 // Password must be at least 8 chars with uppercase, lowercase, and number
 export const passwordSchema = z.string()
   .min(8, 'Password must be at least 8 characters')

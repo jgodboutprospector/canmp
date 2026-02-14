@@ -7,6 +7,7 @@ import {
   getMaxFileSize,
 } from '@/lib/services/s3';
 import { requireAuthFromRequest } from '@/lib/auth-server';
+import { uuidSchema } from '@/lib/validation/schemas';
 import {
   successResponse,
   errorResponse,
@@ -33,11 +34,13 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
-    const donationItemId = searchParams.get('donation_item_id');
+    const rawDonationItemId = searchParams.get('donation_item_id');
 
-    if (!donationItemId) {
+    if (!rawDonationItemId) {
       return errorResponse('donation_item_id is required', 400, 'MISSING_PARAM');
     }
+
+    const donationItemId = uuidSchema.parse(rawDonationItemId);
 
     const { data, error } = await supabase
       .from('donation_photos')
@@ -72,12 +75,14 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     const formData = await request.formData();
     const file = formData.get('file') as File;
-    const donationItemId = formData.get('donation_item_id') as string;
+    const rawDonationItemId = formData.get('donation_item_id') as string;
     const isPrimary = formData.get('is_primary') === 'true';
 
-    if (!file || !donationItemId) {
+    if (!file || !rawDonationItemId) {
       return errorResponse('file and donation_item_id are required', 400, 'MISSING_PARAM');
     }
+
+    const donationItemId = uuidSchema.parse(rawDonationItemId);
 
     // Enhanced file validation
     const validation = validateImageFile(file, 10);
@@ -193,11 +198,13 @@ export async function DELETE(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const rawId = searchParams.get('id');
 
-    if (!id) {
+    if (!rawId) {
       return errorResponse('Photo ID is required', 400, 'MISSING_ID');
     }
+
+    const id = uuidSchema.parse(rawId);
 
     // Get the photo record first
     const { data: photo, error: fetchError } = await (supabase as any)
@@ -286,11 +293,13 @@ export async function PATCH(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
     const body = await request.json();
-    const { id, is_primary, sort_order } = body;
+    const { id: rawId, is_primary, sort_order } = body;
 
-    if (!id) {
+    if (!rawId) {
       return errorResponse('Photo ID is required', 400, 'MISSING_ID');
     }
+
+    const id = uuidSchema.parse(rawId);
 
     // Get the photo to find the donation_item_id
     const { data: photo, error: fetchError } = await (supabase as any)

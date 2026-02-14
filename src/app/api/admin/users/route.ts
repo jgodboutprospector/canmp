@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireRole } from '@/lib/auth-server';
-import { createUserSchema, updateUserSchema } from '@/lib/validation/schemas';
+import { createUserSchema, updateUserSchema, uuidSchema } from '@/lib/validation/schemas';
 import { handleApiError } from '@/lib/api-error';
 
 export async function POST(request: Request) {
@@ -93,14 +93,16 @@ export async function PATCH(request: Request) {
     await requireRole(['admin']);
 
     const body = await request.json();
-    const { userId } = body;
+    const { userId: rawUserId } = body;
 
-    if (!userId) {
+    if (!rawUserId) {
       return NextResponse.json(
         { error: 'User ID is required' },
         { status: 400 }
       );
     }
+
+    const userId = uuidSchema.parse(rawUserId);
 
     // Validate and sanitize updates - only allow specific fields
     const updates = updateUserSchema.parse(body.updates || {});
@@ -134,14 +136,16 @@ export async function DELETE(request: Request) {
     await requireRole(['admin']);
 
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
+    const rawUserId = searchParams.get('userId');
 
-    if (!userId) {
+    if (!rawUserId) {
       return NextResponse.json(
         { error: 'User ID is required' },
         { status: 400 }
       );
     }
+
+    const userId = uuidSchema.parse(rawUserId);
 
     // Delete from auth
     const supabaseAdmin = getSupabaseAdmin();
