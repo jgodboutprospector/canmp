@@ -11,6 +11,7 @@ import {
   GraduationCap,
   Car,
   Baby,
+  Trash2,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { format } from 'date-fns';
@@ -68,6 +69,7 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   onSave?: () => void;
+  onDelete?: () => void;
 }
 
 export default function EnrollmentDetailModal({
@@ -75,12 +77,15 @@ export default function EnrollmentDetailModal({
   isOpen,
   onClose,
   onSave,
+  onDelete,
 }: Props) {
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'certificates'>('overview');
   const [saving, setSaving] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Edit form
   const [editForm, setEditForm] = useState({
@@ -207,6 +212,27 @@ export default function EnrollmentDetailModal({
       console.error('Error saving enrollment:', err);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDeleteEnrollment() {
+    setDeleting(true);
+    try {
+      const response = await fetch(`/api/language?type=enrollments&id=${enrollmentId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to drop enrollment');
+      }
+
+      onDelete?.();
+      onClose();
+    } catch (err) {
+      console.error('Error deleting enrollment:', err);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -429,8 +455,45 @@ export default function EnrollmentDetailModal({
         )}
       </div>
 
+      {/* Delete Confirmation */}
+      {showDeleteConfirm && (
+        <div className="mx-6 mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-sm text-red-700 mb-3">
+            Are you sure you want to drop this enrollment? The student&apos;s status will be changed to &quot;dropped&quot;.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={handleDeleteEnrollment}
+              disabled={deleting}
+              className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm disabled:opacity-50 flex items-center gap-1"
+            >
+              {deleting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4" />
+              )}
+              {deleting ? 'Dropping...' : 'Yes, Drop Enrollment'}
+            </button>
+            <button
+              onClick={() => setShowDeleteConfirm(false)}
+              disabled={deleting}
+              className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
-      <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
+      <div className="px-6 py-4 border-t border-gray-200 flex justify-between">
+        <button
+          onClick={() => setShowDeleteConfirm(true)}
+          className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg font-medium flex items-center gap-2 transition-colors"
+        >
+          <Trash2 className="w-4 h-4" />
+          Drop Enrollment
+        </button>
         <button
           onClick={onClose}
           className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"

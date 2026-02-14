@@ -132,12 +132,14 @@ export function EditTeacherModal({ isOpen, onClose, onSuccess, teacher }: EditTe
 
     setLoading(true);
     try {
-      const { error } = await (supabase as any)
-        .from('teachers')
-        .update({ is_active: false })
-        .eq('id', teacher.id);
+      const response = await fetch(`/api/language?type=teachers&id=${teacher.id}`, {
+        method: 'DELETE',
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to delete teacher');
+      }
 
       onSuccess();
       handleClose();

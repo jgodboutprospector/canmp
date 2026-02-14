@@ -54,6 +54,7 @@ export function EditClassModal({ isOpen, onClose, onSuccess, classSection }: Edi
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [enrollmentCount, setEnrollmentCount] = useState(0);
 
   const [form, setForm] = useState({
     name: '',
@@ -93,7 +94,7 @@ export function EditClassModal({ isOpen, onClose, onSuccess, classSection }: Edi
   async function fetchData() {
     setLoadingData(true);
     try {
-      const [teachersRes, sitesRes] = await Promise.all([
+      const [teachersRes, sitesRes, enrollmentsRes] = await Promise.all([
         supabase
           .from('teachers')
           .select('*')
@@ -103,6 +104,11 @@ export function EditClassModal({ isOpen, onClose, onSuccess, classSection }: Edi
           .from('sites')
           .select('*')
           .order('name'),
+        classSection ? supabase
+          .from('class_enrollments')
+          .select('id', { count: 'exact', head: true })
+          .eq('section_id', classSection.id)
+          .eq('status', 'active') : Promise.resolve({ count: 0 }),
       ]);
 
       if (teachersRes.error) throw teachersRes.error;
@@ -110,6 +116,7 @@ export function EditClassModal({ isOpen, onClose, onSuccess, classSection }: Edi
 
       setTeachers(teachersRes.data || []);
       setSites(sitesRes.data || []);
+      setEnrollmentCount((enrollmentsRes as { count: number | null }).count || 0);
     } catch (err) {
       console.error('Error fetching data:', err);
     } finally {
@@ -175,12 +182,14 @@ export function EditClassModal({ isOpen, onClose, onSuccess, classSection }: Edi
 
     setLoading(true);
     try {
-      const { error } = await (supabase as any)
-        .from('class_sections')
-        .update({ is_active: false })
-        .eq('id', classSection.id);
+      const response = await fetch(`/api/language?type=classes&id=${classSection.id}`, {
+        method: 'DELETE',
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to delete class');
+      }
 
       onSuccess();
       handleClose();
@@ -393,22 +402,29 @@ export function EditClassModal({ isOpen, onClose, onSuccess, classSection }: Edi
         {/* Delete Confirmation */}
         {showDeleteConfirm && (
           <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-sm text-red-700 mb-3">
-              Are you sure you want to deactivate this class? Students will remain enrolled but the class will be hidden.
+            <p className="text-sm text-red-700 mb-2">
+              Are you sure you want to deactivate this class? The class will be hidden from active lists.
             </p>
+            {enrollmentCount > 0 && (
+              <div className="p-2 bg-red-100 rounded text-sm mb-3">
+                <p className="font-medium text-red-800">This will also affect:</p>
+                <p className="text-red-700">{enrollmentCount} active enrollment{enrollmentCount !== 1 ? 's' : ''}</p>
+              </div>
+            )}
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={handleDelete}
                 disabled={loading}
-                className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
+                className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm disabled:opacity-50"
               >
                 {loading ? 'Deleting...' : 'Yes, Deactivate'}
               </button>
               <button
                 type="button"
                 onClick={() => setShowDeleteConfirm(false)}
-                className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
+                disabled={loading}
+                className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm disabled:opacity-50"
               >
                 Cancel
               </button>
