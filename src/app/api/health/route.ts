@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import v8 from 'v8';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,11 +24,14 @@ export async function GET() {
     checks.database = 'unhealthy';
   }
 
-  // Check memory usage
+  // Check memory usage against the configured heap limit (--max-old-space-size),
+  // not the current allocation which starts small and grows on demand.
   const memoryUsage = process.memoryUsage();
+  const heapStats = v8.getHeapStatistics();
   const heapUsedMB = Math.round(memoryUsage.heapUsed / 1024 / 1024);
   const heapTotalMB = Math.round(memoryUsage.heapTotal / 1024 / 1024);
-  checks.memory = heapUsedMB < heapTotalMB * 0.9 ? 'healthy' : 'degraded';
+  const heapLimitMB = Math.round(heapStats.heap_size_limit / 1024 / 1024);
+  checks.memory = heapUsedMB < heapLimitMB * 0.85 ? 'healthy' : 'degraded';
 
   const allHealthy = Object.values(checks).every(v => v === 'healthy');
   const anyUnhealthy = Object.values(checks).some(v => v === 'unhealthy');
@@ -43,6 +47,7 @@ export async function GET() {
     memory: {
       heapUsedMB,
       heapTotalMB,
+      heapLimitMB,
       rssMB: Math.round(memoryUsage.rss / 1024 / 1024),
     },
     version: process.env.npm_package_version || 'unknown',
