@@ -196,14 +196,21 @@ export function useTransportationRequest(id: string) {
   const [request, setRequest] = useState<TransportationRequestWithRelations | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchRequest = useCallback(async () => {
     if (!id) return;
 
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       setLoading(true);
-      const response = await authFetch(`/api/mutual-aid?id=${id}`);
+      const response = await authFetch(`/api/mutual-aid?id=${id}`, { signal: controller.signal });
       const result: ApiResponse<TransportationRequestWithRelations> = await response.json();
+
+      if (controller.signal.aborted) return;
 
       if (!result.success) {
         throw new Error(result.error || 'Failed to fetch transportation request');
@@ -212,14 +219,18 @@ export function useTransportationRequest(id: string) {
       setRequest(result.data || null);
       setError(null);
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : 'Failed to fetch transportation request');
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
   }, [id]);
 
   useEffect(() => {
     fetchRequest();
+    return () => { abortControllerRef.current?.abort(); };
   }, [fetchRequest]);
 
   return { request, loading, error, refetch: fetchRequest };

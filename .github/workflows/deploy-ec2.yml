@@ -101,9 +101,12 @@ jobs:
           RAMP_CLIENT_SECRET=${{ secrets.RAMP_CLIENT_SECRET }}
           ENVEOF
 
+            # Capture the deployed commit SHA for the health endpoint
+            GIT_SHA=$(git rev-parse --short HEAD)
+
             # Build and restart with Docker Compose
             docker-compose pull
-            docker-compose build --no-cache
+            GIT_COMMIT_SHA=$GIT_SHA docker-compose build --no-cache
 
             # Remove any orphaned containers before starting
             docker-compose down --remove-orphans

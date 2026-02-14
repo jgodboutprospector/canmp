@@ -31,6 +31,10 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# Git commit hash injected at build time for deploy verification
+ARG GIT_COMMIT_SHA=unknown
+ENV GIT_COMMIT_SHA=$GIT_COMMIT_SHA
+
 # Install curl for health checks
 RUN apk add --no-cache curl
 

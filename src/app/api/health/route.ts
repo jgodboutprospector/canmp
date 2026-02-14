@@ -50,7 +50,7 @@ export async function GET() {
       heapLimitMB,
       rssMB: Math.round(memoryUsage.rss / 1024 / 1024),
     },
-    version: process.env.npm_package_version || 'unknown',
+    version: process.env.GIT_COMMIT_SHA || 'dev',
   };
 
   return NextResponse.json(response, {

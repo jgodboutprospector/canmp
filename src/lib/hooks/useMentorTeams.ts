@@ -209,14 +209,21 @@ export function useMentorTeam(id: string) {
   const [team, setTeam] = useState<MentorTeamWithRelations | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchTeam = useCallback(async () => {
     if (!id) return;
 
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       setLoading(true);
-      const response = await authFetch(`/api/mentors?id=${id}`);
+      const response = await authFetch(`/api/mentors?id=${id}`, { signal: controller.signal });
       const result: ApiResponse<MentorTeamWithRelations> = await response.json();
+
+      if (controller.signal.aborted) return;
 
       if (!result.success) {
         throw new Error(result.error || 'Failed to fetch mentor team');
@@ -225,14 +232,18 @@ export function useMentorTeam(id: string) {
       setTeam(result.data || null);
       setError(null);
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : 'Failed to fetch mentor team');
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
   }, [id]);
 
   useEffect(() => {
     fetchTeam();
+    return () => { abortControllerRef.current?.abort(); };
   }, [fetchTeam]);
 
   return { team, loading, error, refetch: fetchTeam };
