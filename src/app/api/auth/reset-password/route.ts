@@ -6,6 +6,7 @@ import {
   errorResponse,
   handleApiError,
   checkRateLimit,
+  parseJsonBody,
 } from '@/lib/api-server-utils';
 
 const resetPasswordSchema = z.object({
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
       return errorResponse('Too many reset attempts. Please try again later.', 429, 'RATE_LIMITED');
     }
 
-    const body = await request.json();
+    const body = await parseJsonBody(request);
     const { email } = resetPasswordSchema.parse(body);
 
     const supabase = getSupabaseAdmin();

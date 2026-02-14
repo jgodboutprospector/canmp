@@ -18,9 +18,8 @@ services:
       - NEON_ORG_ID=${NEON_ORG_ID}
       - NEON_API_KEY=${NEON_API_KEY}
       - SYNC_API_KEY=${SYNC_API_KEY}
-      - APLOS_API_BASE_URL=${APLOS_API_BASE_URL}
       - APLOS_CLIENT_ID=${APLOS_CLIENT_ID}
-      - APLOS_PRIVATE_KEY=${APLOS_PRIVATE_KEY}
+      - APLOS_SIDECAR_URL=http://aplos-sidecar:3001
       - RAMP_API_BASE_URL=${RAMP_API_BASE_URL}
       - RAMP_CLIENT_ID=${RAMP_CLIENT_ID}
       - RAMP_CLIENT_SECRET=${RAMP_CLIENT_SECRET}
@@ -38,11 +37,37 @@ services:
         reservations:
           cpus: '0.5'
           memory: 512M
+    depends_on:
+      - aplos-sidecar
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
+
+  aplos-sidecar:
+    build:
+      context: ./aplos-sidecar
+      dockerfile: Dockerfile
+    container_name: aplos-sidecar
+    restart: unless-stopped
+    environment:
+      - APLOS_API_BASE_URL=${APLOS_API_BASE_URL}
+      - APLOS_CLIENT_ID=${APLOS_CLIENT_ID}
+      - APLOS_PRIVATE_KEY=${APLOS_PRIVATE_KEY}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
 
   nginx:
     image: nginx:alpine

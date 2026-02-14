@@ -3,13 +3,14 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireRole } from '@/lib/auth-server';
 import { createUserSchema, updateUserSchema, uuidSchema } from '@/lib/validation/schemas';
 import { handleApiError } from '@/lib/api-error';
+import { parseJsonBody } from '@/lib/api-server-utils';
 
 export async function POST(request: Request) {
   try {
     // Require admin role
     await requireRole(['admin']);
 
-    const body = await request.json();
+    const body = await parseJsonBody(request);
 
     // Validate input
     const { email, password, firstName, lastName, role } = createUserSchema.parse(body);
@@ -92,7 +93,7 @@ export async function PATCH(request: Request) {
     // Require admin role
     await requireRole(['admin']);
 
-    const body = await request.json();
+    const body = await parseJsonBody(request);
     const { userId: rawUserId } = body;
 
     if (!rawUserId) {

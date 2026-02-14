@@ -12,6 +12,7 @@ import {
   getRateLimitIdentifier,
   rateLimitResponse,
   createAuditLog,
+  parseJsonBody,
 } from '@/lib/api-server-utils';
 
 // Validation schemas
@@ -219,7 +220,7 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || 'households';
-    const body = await request.json();
+    const body = await parseJsonBody(request);
 
     if (type === 'households') {
       const validatedData = createHouseholdSchema.parse(body);
@@ -323,7 +324,7 @@ export async function PATCH(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || 'households';
-    const body = await request.json();
+    const body = await parseJsonBody(request);
     const { id, ...updateData } = body;
 
     if (!id) {

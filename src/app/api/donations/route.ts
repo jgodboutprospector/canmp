@@ -12,6 +12,7 @@ import {
   getRateLimitIdentifier,
   rateLimitResponse,
   createAuditLog,
+  parseJsonBody,
 } from '@/lib/api-server-utils';
 
 // GET /api/donations - Fetch donations with optional filters and pagination
@@ -122,7 +123,7 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getSupabaseAdmin();
-    const body = await request.json();
+    const body = await parseJsonBody(request);
 
     // Validate input
     const validatedData = createDonationSchema.parse(body);
@@ -177,7 +178,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const supabase = getSupabaseAdmin();
-    const body = await request.json();
+    const body = await parseJsonBody(request);
     const { id: rawId, ...updateData } = body;
 
     if (!rawId) {

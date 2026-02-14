@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { rampClient, RampCard, RampTransaction, RampReimbursement } from '@/lib/services/ramp';
 import { requireRole } from '@/lib/auth-server';
 import { handleApiError } from '@/lib/api-error';
+import { parseJsonBody } from '@/lib/api-server-utils';
 
 // Demo data - fallback when API is not configured or fails
 const demoCards = [
@@ -200,7 +201,7 @@ export async function POST(request: Request) {
         isDemo: true,
       }, { status: 400 });
     }
-    const body = await request.json();
+    const body = await parseJsonBody(request);
 
     switch (action) {
       case 'approve-reimbursement': {

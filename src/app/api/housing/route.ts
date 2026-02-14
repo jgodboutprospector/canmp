@@ -12,6 +12,7 @@ import {
   getRateLimitIdentifier,
   rateLimitResponse,
   createAuditLog,
+  parseJsonBody,
 } from '@/lib/api-server-utils';
 
 // Validation schemas
@@ -235,7 +236,7 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || 'properties';
-    const body = await request.json();
+    const body = await parseJsonBody(request);
 
     if (type === 'properties') {
       const validatedData = createPropertySchema.parse(body);
@@ -324,7 +325,7 @@ export async function PATCH(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || 'properties';
-    const body = await request.json();
+    const body = await parseJsonBody(request);
     const { id, ...updateData } = body;
 
     if (!id) {
@@ -371,7 +372,7 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
-// DELETE /api/housing - Soft delete property or unit
+// DELETE /api/housing - Soft delete property, unit, lease, or work order
 export async function DELETE(request: NextRequest) {
   try {
     const { profile } = await requireRoleFromRequest(request, ['admin']);
@@ -392,10 +393,34 @@ export async function DELETE(request: NextRequest) {
       return errorResponse('ID is required', 400, 'MISSING_ID');
     }
 
-    const table = type === 'properties' ? 'properties' : type === 'units' ? 'units' : null;
+    // Map type to table and soft delete method
+    let table: string;
+    let softDeleteField: string;
+    let softDeleteValue: string | boolean;
 
-    if (!table) {
-      return errorResponse('Invalid type parameter', 400, 'INVALID_TYPE');
+    switch (type) {
+      case 'properties':
+        table = 'properties';
+        softDeleteField = 'is_active';
+        softDeleteValue = false;
+        break;
+      case 'units':
+        table = 'units';
+        softDeleteField = 'status';
+        softDeleteValue = 'offline';
+        break;
+      case 'leases':
+        table = 'leases';
+        softDeleteField = 'status';
+        softDeleteValue = 'terminated';
+        break;
+      case 'work-orders':
+        table = 'work_orders';
+        softDeleteField = 'status';
+        softDeleteValue = 'cancelled';
+        break;
+      default:
+        return errorResponse('Invalid type parameter', 400, 'INVALID_TYPE');
     }
 
     // Fetch old data for audit
@@ -405,10 +430,14 @@ export async function DELETE(request: NextRequest) {
       .eq('id', id)
       .single();
 
+    if (!oldData) {
+      return errorResponse('Record not found', 404, 'NOT_FOUND');
+    }
+
     // Soft delete
     const { error } = await (supabase as any)
       .from(table)
-      .update({ is_active: false })
+      .update({ [softDeleteField]: softDeleteValue })
       .eq('id', id);
 
     if (error) return errorResponse(error.message, 500);
@@ -416,7 +445,7 @@ export async function DELETE(request: NextRequest) {
     await createAuditLog(supabase, {
       userId: profile.id,
       action: 'delete',
-      entityType: table,
+      entityType: table.replace('_', '-'),
       entityId: id,
       oldValue: oldData,
     });

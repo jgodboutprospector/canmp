@@ -17,6 +17,7 @@ import {
   rateLimitResponse,
   validateImageFile,
   createAuditLog,
+  parseJsonBody,
 } from '@/lib/api-server-utils';
 
 // GET /api/donations/photos - Get photos for a donation item
@@ -292,7 +293,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const supabase = getSupabaseAdmin();
-    const body = await request.json();
+    const body = await parseJsonBody(request);
     const { id: rawId, is_primary, sort_order } = body;
 
     if (!rawId) {

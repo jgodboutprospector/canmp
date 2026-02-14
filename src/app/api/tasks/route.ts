@@ -12,6 +12,7 @@ import {
   getRateLimitIdentifier,
   rateLimitResponse,
   createAuditLog,
+  parseJsonBody,
 } from '@/lib/api-server-utils';
 
 const TASK_SELECT = `
@@ -158,7 +159,7 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getSupabaseAdmin();
-    const body = await request.json();
+    const body = await parseJsonBody(request);
 
     // Validate input
     const validatedData = createTaskSchema.parse(body);
@@ -209,7 +210,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const supabase = getSupabaseAdmin();
-    const body = await request.json();
+    const body = await parseJsonBody(request);
     const { id, ...updateFields } = body;
 
     if (!id) {

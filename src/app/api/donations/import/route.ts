@@ -4,6 +4,7 @@ import { migrateImageToS3 } from '@/lib/services/s3';
 import { secureCompare } from '@/lib/auth-server';
 import { importDonationsSchema } from '@/lib/validation/schemas';
 import { handleApiError } from '@/lib/api-error';
+import { parseJsonBody, IMPORT_MAX_BODY_BYTES } from '@/lib/api-server-utils';
 
 // Map Airtable categories to our enum values
 const CATEGORY_MAP: Record<string, string> = {
@@ -73,7 +74,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
+    const body = await parseJsonBody(request, IMPORT_MAX_BODY_BYTES);
 
     // Validate input
     const { records, migratePhotos = false } = importDonationsSchema.parse(body);

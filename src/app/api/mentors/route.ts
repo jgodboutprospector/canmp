@@ -12,6 +12,7 @@ import {
   getRateLimitIdentifier,
   rateLimitResponse,
   createAuditLog,
+  parseJsonBody,
 } from '@/lib/api-server-utils';
 
 // Validation schemas
@@ -182,7 +183,7 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action');
-    const body = await request.json();
+    const body = await parseJsonBody(request);
 
     // Add member to team
     if (action === 'add_member') {
@@ -397,7 +398,7 @@ export async function PATCH(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action');
-    const body = await request.json();
+    const body = await parseJsonBody(request);
 
     // Update member (role or is_active)
     if (action === 'update_member') {

@@ -11,6 +11,7 @@ import {
   getRateLimitIdentifier,
   rateLimitResponse,
   createAuditLog,
+  parseJsonBody,
 } from '@/lib/api-server-utils';
 import type { TransportationRequest, TransportationRequestStatus } from '@/types/database';
 
@@ -219,7 +220,7 @@ export async function POST(request: NextRequest) {
     await requireRoleFromRequest(request, ['admin', 'coordinator']);
 
     const supabase = getSupabaseAdmin();
-    const body = await request.json();
+    const body = await parseJsonBody(request);
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action');
 
@@ -323,7 +324,7 @@ export async function PATCH(request: NextRequest) {
     await requireRoleFromRequest(request, ['admin', 'coordinator']);
 
     const supabase = getSupabaseAdmin();
-    const body = await request.json();
+    const body = await parseJsonBody(request);
 
     const validated = updateTransportationRequestSchema.parse(body);
     const { id, ...updates } = validated;

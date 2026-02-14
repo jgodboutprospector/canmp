@@ -12,6 +12,7 @@ import {
   getRateLimitIdentifier,
   rateLimitResponse,
   createAuditLog,
+  parseJsonBody,
 } from '@/lib/api-server-utils';
 
 // Validation schemas
@@ -217,7 +218,7 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action');
-    const body = await request.json();
+    const body = await parseJsonBody(request);
 
     // Import from Neon
     if (action === 'import') {
@@ -361,7 +362,7 @@ export async function PATCH(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action');
-    const body = await request.json();
+    const body = await parseJsonBody(request);
 
     // Update availability
     if (action === 'availability') {

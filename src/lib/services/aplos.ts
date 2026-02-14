@@ -15,7 +15,6 @@
  * - Chart of accounts
  */
 
-import * as crypto from 'crypto';
 import { fetchWithTimeout, sanitizeErrorMessage } from '../api-utils';
 
 // ============================================
@@ -115,7 +114,7 @@ export interface AplosApiResponse<T> {
 class AplosClient {
   private baseUrl: string;
   private clientId: string;
-  private privateKey: string;
+  private sidecarUrl: string;
   private accessToken: string | null = null;
   private tokenExpiry: Date | null = null;
 
@@ -123,59 +122,8 @@ class AplosClient {
     // Note: Aplos uses app.aplos.com for API, not www.aplos.com
     this.baseUrl = process.env.APLOS_API_BASE_URL || 'https://app.aplos.com/hermes/api/v1';
     this.clientId = process.env.APLOS_CLIENT_ID || '';
-    // Handle private key - it may be raw base64 or already PEM formatted
-    const rawKey = process.env.APLOS_PRIVATE_KEY || '';
-    if (rawKey.includes('-----BEGIN')) {
-      // Already PEM formatted
-      this.privateKey = rawKey.replace(/\\n/g, '\n');
-    } else if (rawKey) {
-      // Raw base64 - convert to PEM format
-      // Split into 64-character lines and wrap with headers
-      const formatted = rawKey.match(/.{1,64}/g)?.join('\n') || rawKey;
-      this.privateKey = `-----BEGIN PRIVATE KEY-----\n${formatted}\n-----END PRIVATE KEY-----`;
-    } else {
-      this.privateKey = '';
-    }
-  }
-
-  /**
-   * Decrypt the encrypted token returned by Aplos using RSA private key
-   * Aplos encrypts the access token with your public key, so you must decrypt with private key
-   */
-  private decryptToken(encryptedToken: string): string {
-    try {
-      // Decode base64 encrypted token
-      const encryptedBuffer = Buffer.from(encryptedToken, 'base64');
-
-      // Try OAEP padding first (more secure, used by some APIs)
-      // Then fall back to PKCS1 if needed
-      const paddingOptions = [
-        { padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, oaepHash: 'sha256' },
-        { padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, oaepHash: 'sha1' },
-        { padding: crypto.constants.RSA_PKCS1_PADDING }, // Legacy - may fail on Node.js 22+
-      ];
-
-      for (const options of paddingOptions) {
-        try {
-          const decrypted = crypto.privateDecrypt(
-            {
-              key: this.privateKey,
-              ...options,
-            },
-            encryptedBuffer
-          );
-          return decrypted.toString('utf8');
-        } catch {
-          // Try next padding option
-          continue;
-        }
-      }
-
-      throw new Error('All decryption methods failed');
-    } catch (error) {
-      console.error('Token decryption failed:', error);
-      throw new Error(`Failed to decrypt Aplos token: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+    // Sidecar handles RSA decryption so the main app doesn't need CVE-2023-46809 revert
+    this.sidecarUrl = process.env.APLOS_SIDECAR_URL || 'http://aplos-sidecar:3001';
   }
 
   private async getAccessToken(): Promise<string> {
@@ -184,19 +132,15 @@ class AplosClient {
       return this.accessToken;
     }
 
-    if (!this.clientId || !this.privateKey) {
+    if (!this.clientId) {
       throw new Error('Aplos credentials not configured. Set APLOS_CLIENT_ID and APLOS_PRIVATE_KEY.');
     }
 
-    // Request encrypted token from Aplos auth endpoint
-    // The clientId is part of the URL path, not a query parameter
-    const authUrl = `${this.baseUrl}/auth/${this.clientId}`;
-
-    const response = await fetchWithTimeout(authUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-      },
+    // Delegate token exchange + RSA decryption to the sidecar service
+    // The sidecar runs with --security-revert=CVE-2023-46809 so we don't have to
+    const response = await fetchWithTimeout(`${this.sidecarUrl}/auth-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
     }, 30000);
 
     if (!response.ok) {
@@ -206,21 +150,17 @@ class AplosClient {
 
     const data = await response.json();
 
-    // The response contains an encrypted token that we must decrypt with our private key
-    // Response format: { "data": { "token": "base64_encrypted_token", "expires": "..." } }
-    const encryptedToken = data.data?.token || data.token;
-
-    if (!encryptedToken) {
-      throw new Error('No token in Aplos auth response');
+    if (!data.token) {
+      throw new Error('No token returned from Aplos sidecar');
     }
 
-    // Decrypt the token using our private key
-    this.accessToken = this.decryptToken(encryptedToken);
+    const token: string = data.token;
+    this.accessToken = token;
 
     // Set expiry to 25 minutes (tokens expire after 30 minutes)
     this.tokenExpiry = new Date(Date.now() + 25 * 60 * 1000);
 
-    return this.accessToken;
+    return token;
   }
 
   private async request<T>(

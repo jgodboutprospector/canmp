@@ -188,6 +188,79 @@ export function rateLimitResponse(resetAt: number): NextResponse {
 }
 
 // ============================================
+// REQUEST BODY SIZE LIMITS
+// ============================================
+
+const DEFAULT_MAX_BODY_BYTES = 1 * 1024 * 1024; // 1 MB for JSON
+const IMPORT_MAX_BODY_BYTES = 5 * 1024 * 1024;  // 5 MB for imports
+
+/**
+ * Parse JSON body with size limit enforcement.
+ * Use this instead of request.json() to prevent oversized payloads.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function parseJsonBody<T = any>(
+  request: Request,
+  maxBytes: number = DEFAULT_MAX_BODY_BYTES
+): Promise<T> {
+  const contentLength = request.headers.get('content-length');
+  if (contentLength && parseInt(contentLength, 10) > maxBytes) {
+    throw new ApiError(
+      `Request body too large. Maximum size: ${Math.round(maxBytes / 1024)}KB`,
+      413,
+      'BODY_TOO_LARGE'
+    );
+  }
+
+  // Stream-read to enforce actual size (content-length can be spoofed)
+  const reader = request.body?.getReader();
+  if (!reader) {
+    throw new ApiError('Request body is empty', 400, 'EMPTY_BODY');
+  }
+
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    totalBytes += value.length;
+    if (totalBytes > maxBytes) {
+      reader.cancel();
+      throw new ApiError(
+        `Request body too large. Maximum size: ${Math.round(maxBytes / 1024)}KB`,
+        413,
+        'BODY_TOO_LARGE'
+      );
+    }
+    chunks.push(value);
+  }
+
+  const body = new TextDecoder().decode(
+    chunks.length === 1 ? chunks[0] : concatUint8Arrays(chunks)
+  );
+
+  try {
+    return JSON.parse(body) as T;
+  } catch {
+    throw new ApiError('Invalid JSON in request body', 400, 'INVALID_JSON');
+  }
+}
+
+function concatUint8Arrays(arrays: Uint8Array[]): Uint8Array {
+  const totalLength = arrays.reduce((acc, arr) => acc + arr.length, 0);
+  const result = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const arr of arrays) {
+    result.set(arr, offset);
+    offset += arr.length;
+  }
+  return result;
+}
+
+export { IMPORT_MAX_BODY_BYTES };
+
+// ============================================
 // ERROR HANDLING
 // ============================================
 

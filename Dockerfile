@@ -54,8 +54,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Enable legacy RSA PKCS1 padding for Aplos API token decryption
-# This is required because Aplos uses PKCS1 v1.5 padding which was disabled in Node.js for CVE-2023-46809
-# Aplos is a third-party financial system that requires this specific encryption method.
-# Without this revert, RSA decryption of Aplos API tokens fails with "error:1C800064:Provider routines::bad decrypt"
-CMD ["node", "--security-revert=CVE-2023-46809", "server.js"]
+# RSA PKCS#1 v1.5 decryption for Aplos API is now isolated in the aplos-sidecar container
+CMD ["node", "server.js"]

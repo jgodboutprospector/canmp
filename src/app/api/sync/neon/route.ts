@@ -8,6 +8,7 @@ import {
 } from '@/lib/services/neoncrm';
 import { secureCompare } from '@/lib/auth-server';
 import { handleApiError } from '@/lib/api-error';
+import { parseJsonBody } from '@/lib/api-server-utils';
 
 export async function POST(request: Request) {
   try {
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
     }
 
     // Get sync type from request body
-    const body = await request.json().catch(() => ({}));
+    const body = await parseJsonBody(request).catch(() => ({}));
     const syncType = body.type || 'full';
 
     let result;
