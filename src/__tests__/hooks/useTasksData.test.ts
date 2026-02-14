@@ -1,8 +1,11 @@
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { useTasks } from '@/lib/hooks/useTasksData';
 
-// Mock fetch
-global.fetch = jest.fn();
+// Mock authFetch since the hook uses it
+const mockAuthFetch = jest.fn();
+jest.mock('@/lib/api-client', () => ({
+  authFetch: (...args: any[]) => mockAuthFetch(...args),
+}));
 
 describe('useTasksData', () => {
   beforeEach(() => {
@@ -35,7 +38,7 @@ describe('useTasksData', () => {
   ];
 
   it('should start with loading state', () => {
-    (global.fetch as jest.Mock).mockImplementation(() => new Promise(() => {}));
+    mockAuthFetch.mockImplementation(() => new Promise(() => {}));
 
     const { result } = renderHook(() => useTasks());
 
@@ -44,7 +47,7 @@ describe('useTasksData', () => {
   });
 
   it('should fetch tasks successfully', async () => {
-    (global.fetch as jest.Mock).mockResolvedValue({
+    mockAuthFetch.mockResolvedValue({
       json: async () => ({ success: true, data: mockTasks }),
     });
 
@@ -59,31 +62,31 @@ describe('useTasksData', () => {
   });
 
   it('should filter by status', async () => {
-    (global.fetch as jest.Mock).mockResolvedValue({
+    mockAuthFetch.mockResolvedValue({
       json: async () => ({ success: true, data: [mockTasks[0]] }),
     });
 
     renderHook(() => useTasks({ status: 'todo' }));
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('status=todo'));
+      expect(mockAuthFetch).toHaveBeenCalledWith(expect.stringContaining('status=todo'));
     });
   });
 
   it('should filter by assignee', async () => {
-    (global.fetch as jest.Mock).mockResolvedValue({
+    mockAuthFetch.mockResolvedValue({
       json: async () => ({ success: true, data: mockTasks }),
     });
 
     renderHook(() => useTasks({ assignee_id: 'user-1' }));
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('assignee_id=user-1'));
+      expect(mockAuthFetch).toHaveBeenCalledWith(expect.stringContaining('assignee_id=user-1'));
     });
   });
 
   it('should handle errors', async () => {
-    (global.fetch as jest.Mock).mockResolvedValue({
+    mockAuthFetch.mockResolvedValue({
       json: async () => ({ success: false, error: 'Failed to fetch tasks' }),
     });
 
@@ -98,7 +101,7 @@ describe('useTasksData', () => {
   });
 
   it('should handle network errors', async () => {
-    (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
+    mockAuthFetch.mockRejectedValue(new Error('Network error'));
 
     const { result } = renderHook(() => useTasks());
 
@@ -111,7 +114,7 @@ describe('useTasksData', () => {
 
   it('should create task successfully', async () => {
     const newTask = { ...mockTasks[0], id: 'task-3' };
-    (global.fetch as jest.Mock)
+    mockAuthFetch
       .mockResolvedValueOnce({
         json: async () => ({ success: true, data: mockTasks }),
       })
@@ -134,7 +137,7 @@ describe('useTasksData', () => {
     });
 
     expect(createdTask).toEqual(newTask);
-    expect(global.fetch).toHaveBeenCalledWith(
+    expect(mockAuthFetch).toHaveBeenCalledWith(
       '/api/tasks',
       expect.objectContaining({ method: 'POST' })
     );
@@ -142,7 +145,7 @@ describe('useTasksData', () => {
 
   it('should update task successfully', async () => {
     const updatedTask = { ...mockTasks[0], title: 'Updated task' };
-    (global.fetch as jest.Mock)
+    mockAuthFetch
       .mockResolvedValueOnce({
         json: async () => ({ success: true, data: mockTasks }),
       })
@@ -165,14 +168,14 @@ describe('useTasksData', () => {
     });
 
     expect(result_task).toEqual(updatedTask);
-    expect(global.fetch).toHaveBeenCalledWith(
+    expect(mockAuthFetch).toHaveBeenCalledWith(
       '/api/tasks',
       expect.objectContaining({ method: 'PATCH' })
     );
   });
 
   it('should delete task successfully', async () => {
-    (global.fetch as jest.Mock)
+    mockAuthFetch
       .mockResolvedValueOnce({
         json: async () => ({ success: true, data: mockTasks }),
       })
@@ -192,7 +195,7 @@ describe('useTasksData', () => {
     });
 
     expect(success).toBe(true);
-    expect(global.fetch).toHaveBeenCalledWith(
+    expect(mockAuthFetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/tasks?id=task-1'),
       expect.objectContaining({ method: 'DELETE' })
     );
@@ -200,7 +203,7 @@ describe('useTasksData', () => {
 
   it('should move task to new status', async () => {
     const movedTask = { ...mockTasks[0], status: 'done' as const };
-    (global.fetch as jest.Mock)
+    mockAuthFetch
       .mockResolvedValueOnce({
         json: async () => ({ success: true, data: mockTasks }),
       })
@@ -223,7 +226,7 @@ describe('useTasksData', () => {
   });
 
   it('should group tasks by status', async () => {
-    (global.fetch as jest.Mock).mockResolvedValue({
+    mockAuthFetch.mockResolvedValue({
       json: async () => ({ success: true, data: mockTasks }),
     });
 
@@ -239,7 +242,7 @@ describe('useTasksData', () => {
   });
 
   it('should get tasks for a specific date', async () => {
-    (global.fetch as jest.Mock).mockResolvedValue({
+    mockAuthFetch.mockResolvedValue({
       json: async () => ({ success: true, data: mockTasks }),
     });
 
@@ -255,7 +258,7 @@ describe('useTasksData', () => {
   });
 
   it('should get tasks in date range', async () => {
-    (global.fetch as jest.Mock).mockResolvedValue({
+    mockAuthFetch.mockResolvedValue({
       json: async () => ({ success: true, data: mockTasks }),
     });
 

@@ -36,9 +36,11 @@ const mockDonations = [
   },
 ];
 
-// Mock fetch for the useDonations hook
-const mockFetch = jest.fn();
-global.fetch = mockFetch;
+// Mock authFetch since useDonations hook uses it
+const mockAuthFetch = jest.fn();
+jest.mock('@/lib/api-client', () => ({
+  authFetch: (...args: any[]) => mockAuthFetch(...args),
+}));
 
 // Keep supabase mock for photo upload functionality that still uses direct supabase calls
 jest.mock('@/lib/supabase', () => ({
@@ -62,8 +64,8 @@ jest.mock('@/lib/supabase', () => ({
 describe('DonationsPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    // Setup default mock response for fetch
-    mockFetch.mockResolvedValue({
+    // Setup default mock response for authFetch
+    mockAuthFetch.mockResolvedValue({
       json: async () => ({ success: true, data: mockDonations }),
     });
   });
@@ -88,7 +90,7 @@ describe('DonationsPage', () => {
 describe('DonationsPage API Integration', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockFetch.mockResolvedValue({
+    mockAuthFetch.mockResolvedValue({
       json: async () => ({ success: true, data: mockDonations }),
     });
   });
@@ -97,7 +99,7 @@ describe('DonationsPage API Integration', () => {
     render(<DonationsPage />);
 
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith('/api/donations');
+      expect(mockAuthFetch).toHaveBeenCalledWith(expect.stringContaining('/api/donations'));
     });
   });
 });

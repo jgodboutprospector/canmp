@@ -4,8 +4,9 @@ import '@testing-library/jest-dom';
 if (typeof Request === 'undefined') {
   global.Request = class Request {
     constructor(url, init = {}) {
-      this.url = url;
-      this.method = init.method || 'GET';
+      // Use defineProperty so subclasses (like NextRequest) can override with getters
+      Object.defineProperty(this, 'url', { value: url, writable: true, configurable: true });
+      Object.defineProperty(this, 'method', { value: init.method || 'GET', writable: true, configurable: true });
       this.headers = new Map(Object.entries(init.headers || {}));
       this._body = init.body;
     }
@@ -19,19 +20,32 @@ if (typeof Request === 'undefined') {
 }
 
 if (typeof Response === 'undefined') {
-  global.Response = class Response {
+  class ResponsePolyfill {
     constructor(body, init = {}) {
-      this._body = body;
-      this.status = init.status || 200;
+      // Store as both body and _body for compatibility with NextResponse
+      Object.defineProperty(this, 'body', { value: body, writable: true, configurable: true });
+      Object.defineProperty(this, '_body', { value: body, writable: true, configurable: true });
+      Object.defineProperty(this, 'status', { value: init.status || 200, writable: true, configurable: true });
       this.headers = new Map(Object.entries(init.headers || {}));
+      // Store parsed JSON for efficient retrieval
+      if (init._parsedJson !== undefined) {
+        this._parsedJson = init._parsedJson;
+      }
     }
     async json() {
+      if (this._parsedJson !== undefined) return this._parsedJson;
       return JSON.parse(this._body);
     }
     async text() {
-      return this._body;
+      return typeof this._body === 'string' ? this._body : '';
     }
-  };
+    static json(data, init = {}) {
+      const body = JSON.stringify(data);
+      const response = new ResponsePolyfill(body, { ...init, _parsedJson: data });
+      return response;
+    }
+  }
+  global.Response = ResponsePolyfill;
 }
 
 if (typeof Headers === 'undefined') {

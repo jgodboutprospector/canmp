@@ -250,11 +250,12 @@ describe('useClassAttendance', () => {
   });
 
   it('should fetch attendance records successfully', async () => {
-    // First call for enrollments
-    const mockEqEnrollments = jest.fn(() => Promise.resolve({ data: mockEnrollments, error: null }));
-    const mockSelectEnrollments = jest.fn(() => ({ eq: mockEqEnrollments }));
+    // First call: from('class_enrollments').select('id').eq('section_id', 'class-1').eq('status', 'active')
+    const mockEq2Enrollments = jest.fn(() => Promise.resolve({ data: mockEnrollments, error: null }));
+    const mockEq1Enrollments = jest.fn(() => ({ eq: mockEq2Enrollments }));
+    const mockSelectEnrollments = jest.fn(() => ({ eq: mockEq1Enrollments }));
 
-    // Second call for attendance
+    // Second call: from('class_attendance').select('*').in('enrollment_id', [...]).order(...)
     const mockOrderAttendance = jest.fn(() => Promise.resolve({ data: mockAttendance, error: null }));
     const mockInAttendance = jest.fn(() => ({ order: mockOrderAttendance }));
     const mockSelectAttendance = jest.fn(() => ({ in: mockInAttendance }));
@@ -275,9 +276,12 @@ describe('useClassAttendance', () => {
   });
 
   it('should filter by date when provided', async () => {
-    const mockEqEnrollments = jest.fn(() => Promise.resolve({ data: mockEnrollments, error: null }));
-    const mockSelectEnrollments = jest.fn(() => ({ eq: mockEqEnrollments }));
+    // Enrollments: .eq('section_id').eq('status', 'active')
+    const mockEq2Enrollments = jest.fn(() => Promise.resolve({ data: mockEnrollments, error: null }));
+    const mockEq1Enrollments = jest.fn(() => ({ eq: mockEq2Enrollments }));
+    const mockSelectEnrollments = jest.fn(() => ({ eq: mockEq1Enrollments }));
 
+    // Attendance with date filter: .in().eq('class_date', date).order()
     const mockEqDate = jest.fn(() => ({
       order: jest.fn(() => Promise.resolve({ data: mockAttendance, error: null })),
     }));
@@ -296,8 +300,10 @@ describe('useClassAttendance', () => {
   });
 
   it('should handle empty enrollments', async () => {
-    const mockEqEnrollments = jest.fn(() => Promise.resolve({ data: [], error: null }));
-    const mockSelectEnrollments = jest.fn(() => ({ eq: mockEqEnrollments }));
+    // Enrollments: .eq('section_id').eq('status', 'active') returns []
+    const mockEq2Enrollments = jest.fn(() => Promise.resolve({ data: [], error: null }));
+    const mockEq1Enrollments = jest.fn(() => ({ eq: mockEq2Enrollments }));
+    const mockSelectEnrollments = jest.fn(() => ({ eq: mockEq1Enrollments }));
 
     (supabase.from as jest.Mock).mockReturnValueOnce({ select: mockSelectEnrollments });
 
@@ -312,8 +318,10 @@ describe('useClassAttendance', () => {
 
   it('should handle errors', async () => {
     const mockError = new Error('Failed to fetch attendance');
-    const mockEqEnrollments = jest.fn(() => Promise.resolve({ data: null, error: mockError }));
-    const mockSelectEnrollments = jest.fn(() => ({ eq: mockEqEnrollments }));
+    // Enrollments: .eq('section_id').eq('status', 'active') throws error
+    const mockEq2Enrollments = jest.fn(() => Promise.resolve({ data: null, error: mockError }));
+    const mockEq1Enrollments = jest.fn(() => ({ eq: mockEq2Enrollments }));
+    const mockSelectEnrollments = jest.fn(() => ({ eq: mockEq1Enrollments }));
 
     (supabase.from as jest.Mock).mockReturnValueOnce({ select: mockSelectEnrollments });
 

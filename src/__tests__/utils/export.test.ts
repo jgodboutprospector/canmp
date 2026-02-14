@@ -6,9 +6,14 @@ import { exportToCSV } from '@/lib/utils/export';
 
 // Mock DOM elements for testing
 let createdElements: HTMLAnchorElement[] = [];
+let capturedCsvContent: string[] = [];
+
+// Save original Blob
+const OriginalBlob = global.Blob;
 
 beforeEach(() => {
   createdElements = [];
+  capturedCsvContent = [];
 
   // Mock document.createElement
   const originalCreateElement = document.createElement.bind(document);
@@ -26,6 +31,16 @@ beforeEach(() => {
   // Mock document.body.removeChild
   jest.spyOn(document.body, 'removeChild').mockImplementation((node) => node);
 
+  // Mock Blob constructor to capture the string content
+  global.Blob = class MockBlob extends OriginalBlob {
+    constructor(parts?: BlobPart[], options?: BlobPropertyBag) {
+      super(parts, options);
+      if (parts && parts.length > 0) {
+        capturedCsvContent.push(String(parts[0]));
+      }
+    }
+  } as any;
+
   // Mock URL.createObjectURL
   global.URL.createObjectURL = jest.fn(() => 'blob:mock-url');
   global.URL.revokeObjectURL = jest.fn();
@@ -36,7 +51,14 @@ beforeEach(() => {
 
 afterEach(() => {
   jest.restoreAllMocks();
+  global.Blob = OriginalBlob;
 });
+
+// Helper to get CSV content from captured blob
+function getCsvContent(): string {
+  if (capturedCsvContent.length === 0) return '';
+  return capturedCsvContent[capturedCsvContent.length - 1];
+}
 
 describe('exportToCSV', () => {
   const testData = [
@@ -54,19 +76,15 @@ describe('exportToCSV', () => {
   });
 
   it('should generate CSV with headers from data keys', () => {
-    const blobSpy = jest.spyOn(global, 'Blob');
-
     exportToCSV(testData, { filename: 'test' });
 
-    expect(blobSpy).toHaveBeenCalled();
-    const csvContent = blobSpy.mock.calls[0][0][0];
+    const csvContent = getCsvContent();
     expect(csvContent).toContain('id,name,email,amount');
     expect(csvContent).toContain('1,John Doe,john@example.com,100');
     expect(csvContent).toContain('2,Jane Smith,jane@example.com,200');
   });
 
   it('should use custom headers when provided', () => {
-    const blobSpy = jest.spyOn(global, 'Blob');
     const headers = {
       id: 'ID',
       name: 'Full Name',
@@ -76,60 +94,55 @@ describe('exportToCSV', () => {
 
     exportToCSV(testData, { filename: 'test', headers });
 
-    const csvContent = blobSpy.mock.calls[0][0][0];
+    const csvContent = getCsvContent();
     expect(csvContent).toContain('ID,Full Name,Email Address,Amount');
   });
 
   it('should escape CSV values with commas', () => {
-    const blobSpy = jest.spyOn(global, 'Blob');
     const data = [{ name: 'Smith, John', note: 'Hello, World' }];
 
     exportToCSV(data, { filename: 'test' });
 
-    const csvContent = blobSpy.mock.calls[0][0][0];
+    const csvContent = getCsvContent();
     expect(csvContent).toContain('"Smith, John"');
     expect(csvContent).toContain('"Hello, World"');
   });
 
   it('should escape quotes in CSV values', () => {
-    const blobSpy = jest.spyOn(global, 'Blob');
     const data = [{ comment: 'He said "hello"' }];
 
     exportToCSV(data, { filename: 'test' });
 
-    const csvContent = blobSpy.mock.calls[0][0][0];
+    const csvContent = getCsvContent();
     expect(csvContent).toContain('"He said ""hello"""');
   });
 
   it('should handle null and undefined values', () => {
-    const blobSpy = jest.spyOn(global, 'Blob');
     const data = [{ name: 'John', email: null, phone: undefined }];
 
     exportToCSV(data, { filename: 'test' });
 
-    const csvContent = blobSpy.mock.calls[0][0][0];
+    const csvContent = getCsvContent();
     expect(csvContent).toContain('John,,');
   });
 
   it('should format boolean values as Yes/No', () => {
-    const blobSpy = jest.spyOn(global, 'Blob');
     const data = [{ active: true, verified: false }];
 
     exportToCSV(data, { filename: 'test' });
 
-    const csvContent = blobSpy.mock.calls[0][0][0];
+    const csvContent = getCsvContent();
     expect(csvContent).toContain('Yes');
     expect(csvContent).toContain('No');
   });
 
   it('should format dates correctly', () => {
-    const blobSpy = jest.spyOn(global, 'Blob');
     const testDate = new Date('2024-01-15T12:30:00Z');
     const data = [{ date: testDate }];
 
     exportToCSV(data, { filename: 'test' });
 
-    const csvContent = blobSpy.mock.calls[0][0][0];
+    const csvContent = getCsvContent();
     expect(csvContent).toContain('2024-01-15');
   });
 

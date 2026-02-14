@@ -3,11 +3,20 @@
  */
 
 import { hasPermission, getUserProfile } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
 
-jest.mock('@/lib/supabase');
+// Mock supabase for getSession calls
+jest.mock('@/lib/supabase', () => ({
+  supabase: {
+    auth: {
+      getSession: jest.fn().mockResolvedValue({
+        data: { session: { access_token: 'test-token' } },
+      }),
+    },
+  },
+}));
 
-const mockSupabase = supabase as jest.Mocked<typeof supabase>;
+// Mock global fetch for getUserProfile API calls
+global.fetch = jest.fn();
 
 describe('Authentication Utilities', () => {
   describe('hasPermission', () => {
@@ -65,9 +74,8 @@ describe('Authentication Utilities', () => {
     });
 
     it('should fetch user profile successfully', async () => {
-      const mockUserData = {
+      const mockProfileData = {
         id: 'user123',
-        auth_user_id: 'auth123',
         email: 'test@example.com',
         first_name: 'John',
         last_name: 'Doe',
@@ -75,10 +83,9 @@ describe('Authentication Utilities', () => {
         is_active: true,
       };
 
-      (mockSupabase as any).from.mockReturnValue({
-        select: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
-        single: jest.fn().mockResolvedValue({ data: mockUserData, error: null }),
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true, data: mockProfileData }),
       });
 
       const profile = await getUserProfile('auth123');
@@ -95,17 +102,19 @@ describe('Authentication Utilities', () => {
         is_active: true,
       });
 
-      expect(mockSupabase.from).toHaveBeenCalledWith('users');
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/auth/profile',
+        expect.objectContaining({
+          method: 'GET',
+          credentials: 'include',
+        })
+      );
     });
 
     it('should return null on error', async () => {
-      (mockSupabase as any).from.mockReturnValue({
-        select: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
-        single: jest.fn().mockResolvedValue({
-          data: null,
-          error: { message: 'User not found' },
-        }),
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: false,
+        status: 500,
       });
 
       const profile = await getUserProfile('invalid123');
@@ -113,18 +122,15 @@ describe('Authentication Utilities', () => {
       expect(profile).toBeNull();
     });
 
-    it('should query by auth_user_id', async () => {
-      const mockEq = jest.fn().mockReturnThis();
-
-      (mockSupabase as any).from.mockReturnValue({
-        select: jest.fn().mockReturnThis(),
-        eq: mockEq,
-        single: jest.fn().mockResolvedValue({ data: {}, error: null }),
+    it('should return null when API returns error response', async () => {
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: false, error: 'User not found' }),
       });
 
-      await getUserProfile('auth789');
+      const profile = await getUserProfile('auth789');
 
-      expect(mockEq).toHaveBeenCalledWith('auth_user_id', 'auth789');
+      expect(profile).toBeNull();
     });
   });
 });

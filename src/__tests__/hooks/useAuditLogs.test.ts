@@ -258,8 +258,10 @@ describe('useEntityAuditLogs', () => {
   it('should fetch logs for specific entity', async () => {
     const mockRange = jest.fn(() => Promise.resolve({ data: mockLogs, error: null, count: 1 }));
     const mockOrder = jest.fn(() => ({ range: mockRange }));
-    const mockEq = jest.fn(() => ({ order: mockOrder }));
-    const mockSelect = jest.fn(() => ({ eq: mockEq }));
+    // Chain two .eq() calls: first returns object with .eq(), second returns object with .order()
+    const mockEq2 = jest.fn(() => ({ order: mockOrder }));
+    const mockEq1 = jest.fn(() => ({ eq: mockEq2 }));
+    const mockSelect = jest.fn(() => ({ eq: mockEq1 }));
     (supabase.from as jest.Mock).mockReturnValue({
       select: mockSelect,
     });
@@ -270,8 +272,8 @@ describe('useEntityAuditLogs', () => {
       expect(result.current.loading).toBe(false);
     });
 
-    expect(mockEq).toHaveBeenCalledWith('entity_type', 'beneficiary');
-    expect(mockEq).toHaveBeenCalledWith('entity_id', 'ben-1');
+    expect(mockEq1).toHaveBeenCalledWith('entity_type', 'beneficiary');
+    expect(mockEq2).toHaveBeenCalledWith('entity_id', 'ben-1');
   });
 });
 

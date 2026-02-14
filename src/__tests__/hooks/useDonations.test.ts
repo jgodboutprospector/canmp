@@ -1,7 +1,11 @@
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { useDonations } from '@/lib/hooks/useDonations';
 
-global.fetch = jest.fn();
+// Mock authFetch instead of global.fetch since the hook uses authFetch
+const mockAuthFetch = jest.fn();
+jest.mock('@/lib/api-client', () => ({
+  authFetch: (...args: any[]) => mockAuthFetch(...args),
+}));
 
 describe('useDonations', () => {
   beforeEach(() => {
@@ -44,7 +48,7 @@ describe('useDonations', () => {
   ];
 
   it('should start with loading state', () => {
-    (global.fetch as jest.Mock).mockImplementation(() => new Promise(() => {}));
+    mockAuthFetch.mockImplementation(() => new Promise(() => {}));
 
     const { result } = renderHook(() => useDonations());
 
@@ -53,7 +57,7 @@ describe('useDonations', () => {
   });
 
   it('should fetch donations successfully', async () => {
-    (global.fetch as jest.Mock).mockResolvedValue({
+    mockAuthFetch.mockResolvedValue({
       json: async () => ({ success: true, data: mockDonations }),
     });
 
@@ -68,43 +72,49 @@ describe('useDonations', () => {
   });
 
   it('should filter by category', async () => {
-    (global.fetch as jest.Mock).mockResolvedValue({
+    mockAuthFetch.mockResolvedValue({
       json: async () => ({ success: true, data: mockDonations }),
     });
 
     renderHook(() => useDonations({ category: 'furniture' }));
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('category=furniture'));
+      expect(mockAuthFetch).toHaveBeenCalledWith(
+        expect.stringContaining('category=furniture'),
+      );
     });
   });
 
   it('should filter by status', async () => {
-    (global.fetch as jest.Mock).mockResolvedValue({
+    mockAuthFetch.mockResolvedValue({
       json: async () => ({ success: true, data: [mockDonations[0]] }),
     });
 
     renderHook(() => useDonations({ status: 'available' }));
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('status=available'));
+      expect(mockAuthFetch).toHaveBeenCalledWith(
+        expect.stringContaining('status=available'),
+      );
     });
   });
 
   it('should support search functionality', async () => {
-    (global.fetch as jest.Mock).mockResolvedValue({
+    mockAuthFetch.mockResolvedValue({
       json: async () => ({ success: true, data: mockDonations }),
     });
 
     renderHook(() => useDonations({ search: 'sofa' }));
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('search=sofa'));
+      expect(mockAuthFetch).toHaveBeenCalledWith(
+        expect.stringContaining('search=sofa'),
+      );
     });
   });
 
   it('should handle errors', async () => {
-    (global.fetch as jest.Mock).mockResolvedValue({
+    mockAuthFetch.mockResolvedValue({
       json: async () => ({ success: false, error: 'Failed to fetch donations' }),
     });
 
@@ -119,7 +129,7 @@ describe('useDonations', () => {
   });
 
   it('should handle network errors', async () => {
-    (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
+    mockAuthFetch.mockRejectedValue(new Error('Network error'));
 
     const { result } = renderHook(() => useDonations());
 
@@ -132,7 +142,7 @@ describe('useDonations', () => {
 
   it('should create donation item successfully', async () => {
     const newDonation = { ...mockDonations[0], id: 'donation-3', name: 'New Chair' };
-    (global.fetch as jest.Mock)
+    mockAuthFetch
       .mockResolvedValueOnce({
         json: async () => ({ success: true, data: mockDonations }),
       })
@@ -158,7 +168,7 @@ describe('useDonations', () => {
     });
 
     expect(createdItem).toEqual(newDonation);
-    expect(global.fetch).toHaveBeenCalledWith(
+    expect(mockAuthFetch).toHaveBeenCalledWith(
       '/api/donations',
       expect.objectContaining({ method: 'POST' })
     );
@@ -166,7 +176,7 @@ describe('useDonations', () => {
 
   it('should update donation item successfully', async () => {
     const updatedDonation = { ...mockDonations[0], status: 'reserved' as const };
-    (global.fetch as jest.Mock)
+    mockAuthFetch
       .mockResolvedValueOnce({
         json: async () => ({ success: true, data: mockDonations }),
       })
@@ -189,14 +199,14 @@ describe('useDonations', () => {
     });
 
     expect(updatedItem).toEqual(updatedDonation);
-    expect(global.fetch).toHaveBeenCalledWith(
+    expect(mockAuthFetch).toHaveBeenCalledWith(
       '/api/donations',
       expect.objectContaining({ method: 'PATCH' })
     );
   });
 
   it('should delete donation item successfully', async () => {
-    (global.fetch as jest.Mock)
+    mockAuthFetch
       .mockResolvedValueOnce({
         json: async () => ({ success: true, data: mockDonations }),
       })
@@ -216,14 +226,14 @@ describe('useDonations', () => {
     });
 
     expect(success).toBe(true);
-    expect(global.fetch).toHaveBeenCalledWith(
+    expect(mockAuthFetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/donations?id=donation-1'),
       expect.objectContaining({ method: 'DELETE' })
     );
   });
 
   it('should update filters', async () => {
-    (global.fetch as jest.Mock).mockResolvedValue({
+    mockAuthFetch.mockResolvedValue({
       json: async () => ({ success: true, data: mockDonations }),
     });
 
@@ -233,7 +243,9 @@ describe('useDonations', () => {
       expect(result.current.loading).toBe(false);
     });
 
-    expect(result.current.filters).toEqual({});
+    // Initial filters include pagination defaults
+    expect(result.current.filters.page).toBe(1);
+    expect(result.current.filters.limit).toBe(50);
 
     await act(async () => {
       result.current.updateFilters({ category: 'furniture' });
@@ -245,26 +257,32 @@ describe('useDonations', () => {
   });
 
   it('should include inactive items when filter is set', async () => {
-    (global.fetch as jest.Mock).mockResolvedValue({
+    mockAuthFetch.mockResolvedValue({
       json: async () => ({ success: true, data: mockDonations }),
     });
 
     renderHook(() => useDonations({ includeInactive: true }));
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('include_inactive=true'));
+      expect(mockAuthFetch).toHaveBeenCalledWith(
+        expect.stringContaining('include_inactive=true'),
+      );
     });
   });
 
   it('should not include category filter when set to all', async () => {
-    (global.fetch as jest.Mock).mockResolvedValue({
+    mockAuthFetch.mockResolvedValue({
       json: async () => ({ success: true, data: mockDonations }),
     });
 
     renderHook(() => useDonations({ category: 'all' }));
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(expect.not.stringContaining('category='));
+      expect(mockAuthFetch).toHaveBeenCalled();
     });
+
+    // Verify category=all is not sent as a query parameter
+    const calledUrl = mockAuthFetch.mock.calls[0][0] as string;
+    expect(calledUrl).not.toContain('category=');
   });
 });

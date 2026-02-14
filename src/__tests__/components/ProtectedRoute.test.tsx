@@ -6,13 +6,22 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { useAuth } from '@/components/providers/AuthProvider';
-import { useRouter } from 'next/navigation';
 
 // Mock dependencies
 jest.mock('@/components/providers/AuthProvider');
-jest.mock('next/navigation');
+jest.mock('next/navigation', () => ({
+  useRouter: jest.fn(() => ({
+    push: jest.fn(),
+    replace: jest.fn(),
+    prefetch: jest.fn(),
+    back: jest.fn(),
+  })),
+}));
 
 const mockUseAuth = useAuth as jest.MockedFunction<typeof useAuth>;
+
+// Import useRouter after mock so we can access the mock push
+import { useRouter } from 'next/navigation';
 const mockUseRouter = useRouter as jest.MockedFunction<typeof useRouter>;
 
 describe('ProtectedRoute', () => {

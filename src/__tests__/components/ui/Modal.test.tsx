@@ -42,7 +42,8 @@ describe('Modal', () => {
       </Modal>
     );
 
-    const backdrop = screen.getByRole('dialog').previousSibling as HTMLElement;
+    // The backdrop is a child div with aria-hidden="true" inside the dialog
+    const backdrop = screen.getByRole('dialog').querySelector('[aria-hidden="true"]') as HTMLElement;
     fireEvent.click(backdrop);
 
     expect(mockOnClose).toHaveBeenCalledTimes(1);
