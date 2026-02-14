@@ -35,6 +35,15 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // Security headers (defense-in-depth, supplements Nginx headers)
+  supabaseResponse.headers.set('X-Content-Type-Options', 'nosniff');
+  supabaseResponse.headers.set('X-Frame-Options', 'SAMEORIGIN');
+  supabaseResponse.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  supabaseResponse.headers.set('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  if (process.env.NODE_ENV === 'production') {
+    supabaseResponse.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+
   // Just return the response - let the client-side AuthProvider handle redirects
   // This middleware only refreshes the session tokens
   return supabaseResponse;

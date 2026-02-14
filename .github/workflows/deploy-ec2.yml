@@ -34,7 +34,6 @@ jobs:
 
       - name: Run tests
         run: npm test -- --passWithNoTests --ci --reporters=default
-        continue-on-error: true  # Allow deployment while test mocks are being fixed
 
       - name: Build application
         run: npm run build
