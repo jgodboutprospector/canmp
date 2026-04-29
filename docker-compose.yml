@@ -24,6 +24,11 @@ services:
       - RAMP_API_BASE_URL=${RAMP_API_BASE_URL}
       - RAMP_CLIENT_ID=${RAMP_CLIENT_ID}
       - RAMP_CLIENT_SECRET=${RAMP_CLIENT_SECRET}
+      - AWS_REGION=${AWS_REGION}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_S3_BUCKET=${AWS_S3_BUCKET}
+      - AWS_CLOUDFRONT_URL=${AWS_CLOUDFRONT_URL}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
       interval: 30s
