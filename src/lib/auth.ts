@@ -70,17 +70,22 @@ export async function signOut() {
 }
 
 // Get user profile via API (uses server-side auth with service role to bypass RLS)
-export async function getUserProfile(authUserId: string): Promise<UserProfile | null> {
+export async function getUserProfile(authUserId: string, accessToken?: string): Promise<UserProfile | null> {
   console.log('getUserProfile called with authUserId:', authUserId);
 
   try {
-    // Get the current session to pass the access token
-    // This is needed because cookies may not be set yet immediately after login
-    const { data: { session } } = await supabase.auth.getSession();
+    // Prefer an explicitly passed access token (from onAuthStateChange / initial session)
+    // because supabase.auth.getSession() can race with storage rehydration immediately
+    // after sign-in and return null even when a session exists in memory.
+    let token = accessToken;
+    if (!token) {
+      const { data: { session } } = await supabase.auth.getSession();
+      token = session?.access_token;
+    }
 
     const headers: HeadersInit = { 'Content-Type': 'application/json' };
-    if (session?.access_token) {
-      headers['Authorization'] = `Bearer ${session.access_token}`;
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
 
     const response = await fetch('/api/auth/profile', {

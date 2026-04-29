@@ -104,12 +104,14 @@ jobs:
             # Capture the deployed commit SHA for the health endpoint
             GIT_SHA=$(git rev-parse --short HEAD)
 
-            # Build and restart with Docker Compose
+            # Stop running containers BEFORE building. The host is t3.medium (4GB)
+            # and `next build` peaks around 2-3GB; building while the 3GB-limited
+            # app container is still up causes host OOM and locks up the box.
+            docker-compose down --remove-orphans
+
+            # Build and start with Docker Compose
             docker-compose pull
             GIT_COMMIT_SHA=$GIT_SHA docker-compose build --no-cache
-
-            # Remove any orphaned containers before starting
-            docker-compose down --remove-orphans
             docker-compose up -d
 
             # Clean up old images

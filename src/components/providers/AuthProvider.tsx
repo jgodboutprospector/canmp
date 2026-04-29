@@ -102,9 +102,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Load user profile with error handling
-  const loadProfile = useCallback(async (userId: string) => {
+  const loadProfile = useCallback(async (userId: string, accessToken?: string) => {
     try {
-      const userProfile = await getUserProfile(userId);
+      const userProfile = await getUserProfile(userId, accessToken);
       setProfile(userProfile);
     } catch (error) {
       console.error('Error loading user profile:', error);
@@ -157,7 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (isMounted) {
               setSession(refreshData.session);
               setUser(refreshData.session.user);
-              await loadProfile(refreshData.session.user.id);
+              await loadProfile(refreshData.session.user.id, refreshData.session.access_token);
             }
           } finally {
             refreshingRef.current = false;
@@ -170,7 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(session?.user ?? null);
 
           if (session?.user) {
-            await loadProfile(session.user.id);
+            await loadProfile(session.user.id, session.access_token);
           } else {
             setLoading(false);
           }
@@ -214,7 +214,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          await loadProfile(session.user.id);
+          await loadProfile(session.user.id, session.access_token);
           if (event === 'SIGNED_IN') {
             await updateLastLogin(session.user.id);
           }
