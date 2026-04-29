@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Heart, Loader2, Mail, Lock, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/components/providers/AuthProvider';
 import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
 
 export default function LoginPage() {
+  const { user, loading: authLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -14,34 +16,35 @@ export default function LoginPage() {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const router = useRouter();
 
+  // Redirect to dashboard once AuthProvider observes a user (covers the
+  // post-signIn case AND the "already-logged-in user visits /login" case).
+  // Driving navigation from auth state — rather than from the
+  // signInWithPassword promise — avoids races between Supabase's async
+  // SIGNED_IN event handling and Next.js router timing.
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.replace('/dashboard');
+    }
+  }, [user, authLoading, router]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-      if (error) {
-        setError(error.message);
-        setLoading(false);
-        return;
-      }
-
-      if (data.session) {
-        // Use router.refresh() to ensure the session cookies are properly set
-        // before navigating, then redirect
-        router.refresh();
-        router.push('/dashboard');
-      }
-    } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
+    if (error) {
+      setError(error.message);
       setLoading(false);
+      return;
     }
-    // Note: don't setLoading(false) on success - keep loading while redirecting
+    // On success, the useEffect above redirects once AuthProvider observes
+    // the SIGNED_IN event. Keep `loading` true so the button stays disabled
+    // until navigation happens.
   }
 
   return (

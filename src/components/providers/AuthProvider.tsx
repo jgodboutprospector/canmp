@@ -90,6 +90,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const initializedRef = useRef(false);
   const refreshingRef = useRef(false);
+  // Mirror `loading` into a ref so the safety-timeout closure sees the
+  // current value instead of the value captured when useEffect first ran.
+  const loadingRef = useRef(true);
+  loadingRef.current = loading;
 
   // Clear all auth state
   const clearAuthState = useCallback(() => {
@@ -185,9 +189,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     initializeAuth();
 
-    // Safety timeout - if loading takes more than 10 seconds, something is wrong
+    // Safety timeout - if loading takes more than 10 seconds, something is wrong.
+    // Read from loadingRef to avoid the stale closure of useEffect's initial render
+    // (useState's `loading` here would always be `true`).
     const timeoutId = setTimeout(() => {
-      if (isMounted && loading) {
+      if (isMounted && loadingRef.current) {
         console.warn('Auth loading timeout - forcing completion');
         setLoading(false);
       }
