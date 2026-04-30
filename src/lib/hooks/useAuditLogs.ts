@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { AuditAction, EntityType } from '@/lib/audit';
 
@@ -57,8 +57,12 @@ export function useAuditLogs(options: UseAuditLogsOptions = {}): UseAuditLogsRet
   const [error, setError] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   const [currentOffset, setCurrentOffset] = useState(offset);
+  const mountedRef = useRef(true);
+  const fetchInFlightRef = useRef(false);
 
   const fetchLogs = useCallback(async (appendResults = false) => {
+    if (fetchInFlightRef.current) return;
+    fetchInFlightRef.current = true;
     try {
       if (!appendResults) {
         setLoading(true);
@@ -88,6 +92,7 @@ export function useAuditLogs(options: UseAuditLogsOptions = {}): UseAuditLogsRet
       const { data, error: queryError, count } = await query;
 
       if (queryError) throw queryError;
+      if (!mountedRef.current) return;
 
       if (appendResults) {
         setLogs((prev) => [...prev, ...(data || [])]);
@@ -99,14 +104,20 @@ export function useAuditLogs(options: UseAuditLogsOptions = {}): UseAuditLogsRet
         setTotalCount(count);
       }
     } catch (err) {
+      if (!mountedRef.current) return;
       setError(err instanceof Error ? err.message : 'Failed to fetch audit logs');
     } finally {
-      setLoading(false);
+      fetchInFlightRef.current = false;
+      if (mountedRef.current) {
+        setLoading(false);
+      }
     }
   }, [entityType, entityId, action, limit, currentOffset]);
 
   useEffect(() => {
+    mountedRef.current = true;
     fetchLogs();
+    return () => { mountedRef.current = false; };
   }, [fetchLogs]);
 
   const refetch = useCallback(async () => {
@@ -115,6 +126,7 @@ export function useAuditLogs(options: UseAuditLogsOptions = {}): UseAuditLogsRet
   }, [fetchLogs]);
 
   const loadMore = useCallback(async () => {
+    if (fetchInFlightRef.current) return;
     const newOffset = currentOffset + limit;
     setCurrentOffset(newOffset);
     await fetchLogs(true);
@@ -178,72 +190,61 @@ export function useAuditLogStats(): AuditLogStats {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let mounted = true;
+
     async function fetchStats() {
       try {
         setLoading(true);
 
-        // Get total count
-        const { count: totalCount } = await (supabase as any)
-          .from('audit_logs')
-          .select('*', { count: 'exact', head: true });
-
-        // Get today's count
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const { count: todayCount } = await (supabase as any)
-          .from('audit_logs')
-          .select('*', { count: 'exact', head: true })
-          .gte('created_at', today.toISOString());
-
-        // Get this week's count
         const weekAgo = new Date();
         weekAgo.setDate(weekAgo.getDate() - 7);
-        const { count: weekCount } = await (supabase as any)
-          .from('audit_logs')
-          .select('*', { count: 'exact', head: true })
-          .gte('created_at', weekAgo.toISOString());
 
-        // Get counts by action
-        const { data: actionCounts } = await (supabase as any)
-          .from('audit_logs')
-          .select('action')
-          .limit(10000);
+        // Run all queries in parallel instead of sequentially
+        const [totalRes, todayRes, weekRes, actionRes, entityRes] = await Promise.all([
+          (supabase as any).from('audit_logs').select('*', { count: 'exact', head: true }),
+          (supabase as any).from('audit_logs').select('*', { count: 'exact', head: true }).gte('created_at', today.toISOString()),
+          (supabase as any).from('audit_logs').select('*', { count: 'exact', head: true }).gte('created_at', weekAgo.toISOString()),
+          (supabase as any).from('audit_logs').select('action').limit(10000),
+          (supabase as any).from('audit_logs').select('entity_type').limit(10000),
+        ]);
+
+        if (!mounted) return;
 
         const byAction: Record<string, number> = {};
-        if (actionCounts) {
-          actionCounts.forEach((log: { action: string }) => {
+        if (actionRes.data) {
+          actionRes.data.forEach((log: { action: string }) => {
             byAction[log.action] = (byAction[log.action] || 0) + 1;
           });
         }
 
-        // Get counts by entity type
-        const { data: entityCounts } = await (supabase as any)
-          .from('audit_logs')
-          .select('entity_type')
-          .limit(10000);
-
         const byEntityType: Record<string, number> = {};
-        if (entityCounts) {
-          entityCounts.forEach((log: { entity_type: string }) => {
+        if (entityRes.data) {
+          entityRes.data.forEach((log: { entity_type: string }) => {
             byEntityType[log.entity_type] = (byEntityType[log.entity_type] || 0) + 1;
           });
         }
 
         setStats({
-          totalLogs: totalCount || 0,
-          todayCount: todayCount || 0,
-          weekCount: weekCount || 0,
+          totalLogs: totalRes.count || 0,
+          todayCount: todayRes.count || 0,
+          weekCount: weekRes.count || 0,
           byAction: byAction as Record<AuditAction, number>,
           byEntityType,
         });
       } catch (err) {
+        if (!mounted) return;
         setError(err instanceof Error ? err.message : 'Failed to fetch audit log stats');
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     }
 
     fetchStats();
+    return () => { mounted = false; };
   }, []);
 
   return { ...stats, loading, error };

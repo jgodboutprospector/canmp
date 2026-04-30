@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Teacher, ClassSection, Beneficiary, Site } from '@/types/database';
 
@@ -16,9 +16,12 @@ export function useTeachers() {
   const [teachers, setTeachers] = useState<TeacherWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
     fetchTeachers();
+    return () => { mountedRef.current = false; };
   }, []);
 
   async function fetchTeachers() {
@@ -34,11 +37,15 @@ export function useTeachers() {
         .order('last_name');
 
       if (error) throw error;
+      if (!mountedRef.current) return;
       setTeachers(data || []);
     } catch (err) {
+      if (!mountedRef.current) return;
       setError(err instanceof Error ? err.message : 'Failed to fetch teachers');
     } finally {
-      setLoading(false);
+      if (mountedRef.current) {
+        setLoading(false);
+      }
     }
   }
 
@@ -71,9 +78,12 @@ export function useClassSections() {
   const [classes, setClasses] = useState<ClassSectionWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
     fetchClasses();
+    return () => { mountedRef.current = false; };
   }, []);
 
   async function fetchClasses() {
@@ -94,11 +104,15 @@ export function useClassSections() {
         .order('name');
 
       if (error) throw error;
+      if (!mountedRef.current) return;
       setClasses(data || []);
     } catch (err) {
+      if (!mountedRef.current) return;
       setError(err instanceof Error ? err.message : 'Failed to fetch classes');
     } finally {
-      setLoading(false);
+      if (mountedRef.current) {
+        setLoading(false);
+      }
     }
   }
 
@@ -109,12 +123,18 @@ export function useClassSection(id: string) {
   const [classSection, setClassSection] = useState<ClassSectionWithRelations | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
+  const fetchIdRef = useRef(0);
 
   useEffect(() => {
+    mountedRef.current = true;
     if (id) fetchClass();
+    return () => { mountedRef.current = false; };
   }, [id]);
 
   async function fetchClass() {
+    const currentFetchId = ++fetchIdRef.current;
+
     try {
       setLoading(true);
       const { data, error } = await (supabase as any)
@@ -132,11 +152,15 @@ export function useClassSection(id: string) {
         .single();
 
       if (error) throw error;
+      if (!mountedRef.current || currentFetchId !== fetchIdRef.current) return;
       setClassSection(data);
     } catch (err) {
+      if (!mountedRef.current || currentFetchId !== fetchIdRef.current) return;
       setError(err instanceof Error ? err.message : 'Failed to fetch class');
     } finally {
-      setLoading(false);
+      if (mountedRef.current && currentFetchId === fetchIdRef.current) {
+        setLoading(false);
+      }
     }
   }
 
@@ -159,12 +183,19 @@ export function useClassAttendance(sectionId: string, date?: string) {
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
+  const fetchIdRef = useRef(0);
 
   useEffect(() => {
+    mountedRef.current = true;
     if (sectionId) fetchAttendance();
+    return () => { mountedRef.current = false; };
   }, [sectionId, date]);
 
   async function fetchAttendance() {
+    // Track fetch ID so stale responses from previous sectionId/date combos are ignored
+    const currentFetchId = ++fetchIdRef.current;
+
     try {
       setLoading(true);
 
@@ -176,6 +207,7 @@ export function useClassAttendance(sectionId: string, date?: string) {
         .eq('status', 'active');
 
       if (enrollError) throw enrollError;
+      if (!mountedRef.current || currentFetchId !== fetchIdRef.current) return;
 
       if (enrollments && enrollments.length > 0) {
         const enrollmentIds = enrollments.map((e: any) => e.id);
@@ -192,34 +224,34 @@ export function useClassAttendance(sectionId: string, date?: string) {
         const { data, error } = await query.order('class_date', { ascending: false });
 
         if (error) throw error;
+        if (!mountedRef.current || currentFetchId !== fetchIdRef.current) return;
         setAttendance(data || []);
       } else {
         setAttendance([]);
       }
     } catch (err) {
+      if (!mountedRef.current || currentFetchId !== fetchIdRef.current) return;
       setError(err instanceof Error ? err.message : 'Failed to fetch attendance');
     } finally {
-      setLoading(false);
+      if (mountedRef.current && currentFetchId === fetchIdRef.current) {
+        setLoading(false);
+      }
     }
   }
 
   async function markAttendance(enrollmentId: string, classDate: string, isPresent: boolean) {
-    try {
-      const { error } = await (supabase as any)
-        .from('class_attendance')
-        .upsert({
-          enrollment_id: enrollmentId,
-          class_date: classDate,
-          is_present: isPresent,
-        }, {
-          onConflict: 'enrollment_id,class_date'
-        });
+    const { error } = await (supabase as any)
+      .from('class_attendance')
+      .upsert({
+        enrollment_id: enrollmentId,
+        class_date: classDate,
+        is_present: isPresent,
+      }, {
+        onConflict: 'enrollment_id,class_date'
+      });
 
-      if (error) throw error;
-      await fetchAttendance();
-    } catch (err) {
-      throw err;
-    }
+    if (error) throw error;
+    await fetchAttendance();
   }
 
   return { attendance, loading, error, refetch: fetchAttendance, markAttendance };

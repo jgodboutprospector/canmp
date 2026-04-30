@@ -287,12 +287,18 @@ export function useTaskOptions() {
   const [events, setEvents] = useState<Array<{ id: string; title: string }>>([]);
   const [properties, setProperties] = useState<Array<{ id: string; name: string }>>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let mounted = true;
+
     const fetchOptions = async () => {
       try {
+        setError(null);
         const response = await authFetch('/api/tasks/options');
         const result = await response.json();
+
+        if (!mounted) return;
 
         if (result.success) {
           setUsers(result.data.users || []);
@@ -301,16 +307,23 @@ export function useTaskOptions() {
           setClasses(result.data.classes || []);
           setEvents(result.data.events || []);
           setProperties(result.data.properties || []);
+        } else {
+          setError(result.error || 'Failed to fetch task options');
         }
       } catch (err) {
+        if (!mounted) return;
+        setError('Failed to load task options');
         console.error('Failed to fetch task options:', err);
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
     fetchOptions();
+    return () => { mounted = false; };
   }, []);
 
-  return { users, beneficiaries, volunteers, classes, events, properties, loading };
+  return { users, beneficiaries, volunteers, classes, events, properties, loading, error };
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Home,
   Users,
@@ -12,6 +12,7 @@ import {
   Calendar,
   FileText,
   Briefcase,
+  RefreshCw,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/providers/AuthProvider';
@@ -51,6 +52,7 @@ interface BridgeProgram {
 export default function Dashboard() {
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<DashboardStats>({
     activeHouseholds: 0,
     occupiedUnits: 0,
@@ -64,33 +66,56 @@ export default function Dashboard() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [urgentItems, setUrgentItems] = useState<UrgentItem[]>([]);
   const [bridgePrograms, setBridgePrograms] = useState<BridgeProgram[]>([]);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     fetchDashboardData();
+    return () => { abortControllerRef.current?.abort(); };
   }, []);
 
   async function fetchDashboardData() {
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
-      // Fetch all data in parallel
-      const [
-        householdsRes,
-        unitsRes,
-        enrollmentsRes,
-        workOrdersRes,
-        leasesRes,
-        caseNotesRes,
-        paymentsRes,
-      ] = await Promise.all([
+      setError(null);
+
+      // Batch 1: Core stats (lightweight count queries)
+      const [householdsRes, unitsRes, enrollmentsRes] = await Promise.all([
         (supabase as any).from('households').select('id').eq('is_active', true),
         (supabase as any).from('units').select('id, status'),
         (supabase as any).from('class_enrollments').select('id').eq('status', 'enrolled'),
+      ]);
+
+      if (controller.signal.aborted) return;
+
+      // Batch 2: Relational queries (heavier, run after batch 1 completes)
+      const [workOrdersRes, leasesRes, caseNotesRes, paymentsRes] = await Promise.all([
         (supabase as any).from('work_orders').select('id, title, priority, unit:units(unit_number, property:properties(name))').in('status', ['open', 'scheduled', 'in_progress']),
         (supabase as any).from('leases').select('id, lease_type, program_month, total_program_months, household:households(name)').eq('status', 'active'),
         (supabase as any).from('case_notes').select('id, content, household:households(name), followup_date').eq('is_followup_required', true).eq('followup_completed', false),
         (supabase as any).from('rent_ledger').select('amount_collected_from_tenant, ledger_month').gte('ledger_month', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
       ]);
 
-      // Calculate stats
+      if (controller.signal.aborted) return;
+
+      // Check for individual query errors and collect them
+      const queryErrors: string[] = [];
+      if (householdsRes.error) queryErrors.push('households');
+      if (unitsRes.error) queryErrors.push('units');
+      if (enrollmentsRes.error) queryErrors.push('enrollments');
+      if (workOrdersRes.error) queryErrors.push('work orders');
+      if (leasesRes.error) queryErrors.push('leases');
+      if (caseNotesRes.error) queryErrors.push('case notes');
+      if (paymentsRes.error) queryErrors.push('rent payments');
+
+      if (queryErrors.length > 0) {
+        console.error('Dashboard query errors:', queryErrors);
+        setError(`Failed to load: ${queryErrors.join(', ')}. Some data may be incomplete.`);
+      }
+
+      // Calculate stats (gracefully handle partial data)
       const activeHouseholds = householdsRes.data?.length || 0;
       const units = unitsRes.data || [];
       const occupiedUnits = units.filter((u: any) => u.status === 'occupied').length;
@@ -155,9 +180,13 @@ export default function Dashboard() {
       ]);
 
     } catch (err) {
+      if (controller.signal.aborted) return;
       console.error('Error fetching dashboard data:', err);
+      setError('Failed to load dashboard data. Please try refreshing.');
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
   }
 
@@ -191,6 +220,23 @@ export default function Dashboard() {
           {getGreeting()}, {displayName}. Here&apos;s what&apos;s happening today.
         </p>
       </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
+            <p className="text-sm text-red-700">{error}</p>
+          </div>
+          <button
+            onClick={() => { setLoading(true); setError(null); fetchDashboardData(); }}
+            className="flex items-center gap-1 text-sm text-red-600 hover:text-red-800 font-medium"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-4 gap-4 mb-6">

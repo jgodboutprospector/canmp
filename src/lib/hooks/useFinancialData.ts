@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 // Aplos Types
 export interface AplosFund {
@@ -140,8 +140,13 @@ export function useAplosData(dataType: string, fundId?: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDemo, setIsDemo] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchData = useCallback(async () => {
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
     setError(null);
 
@@ -151,8 +156,12 @@ export function useAplosData(dataType: string, fundId?: string) {
         params.append('fund_id', fundId);
       }
 
-      const response = await fetch(`/api/financial/aplos?${params}`);
+      const response = await fetch(`/api/financial/aplos?${params}`, {
+        signal: controller.signal,
+      });
       const result = await response.json();
+
+      if (controller.signal.aborted) return;
 
       if (result.success) {
         setData(result.data);
@@ -161,15 +170,19 @@ export function useAplosData(dataType: string, fundId?: string) {
         setError(result.error || 'Failed to fetch data');
       }
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       setError('Failed to connect to API');
       console.error('Aplos API error:', err);
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
   }, [dataType, fundId]);
 
   useEffect(() => {
     fetchData();
+    return () => { abortControllerRef.current?.abort(); };
   }, [fetchData]);
 
   return { data, loading, error, isDemo, refresh: fetchData };
@@ -181,14 +194,23 @@ export function useRampData(dataType: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDemo, setIsDemo] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchData = useCallback(async () => {
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(`/api/financial/ramp?type=${dataType}`);
+      const response = await fetch(`/api/financial/ramp?type=${dataType}`, {
+        signal: controller.signal,
+      });
       const result = await response.json();
+
+      if (controller.signal.aborted) return;
 
       if (result.success) {
         setData(result.data);
@@ -197,15 +219,19 @@ export function useRampData(dataType: string) {
         setError(result.error || 'Failed to fetch data');
       }
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       setError('Failed to connect to API');
       console.error('Ramp API error:', err);
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
   }, [dataType]);
 
   useEffect(() => {
     fetchData();
+    return () => { abortControllerRef.current?.abort(); };
   }, [fetchData]);
 
   return { data, loading, error, isDemo, refresh: fetchData };
@@ -226,21 +252,30 @@ export function useFinancialDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDemo, setIsDemo] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchData = useCallback(async () => {
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
     setError(null);
 
     try {
       const [aplosResponse, rampResponse] = await Promise.all([
-        fetch('/api/financial/aplos?type=dashboard'),
-        fetch('/api/financial/ramp?type=dashboard'),
+        fetch('/api/financial/aplos?type=dashboard', { signal: controller.signal }),
+        fetch('/api/financial/ramp?type=dashboard', { signal: controller.signal }),
       ]);
+
+      if (controller.signal.aborted) return;
 
       const [aplosResult, rampResult] = await Promise.all([
         aplosResponse.json(),
         rampResponse.json(),
       ]);
+
+      if (controller.signal.aborted) return;
 
       if (aplosResult.success) {
         setAplosData(aplosResult.data);
@@ -251,15 +286,19 @@ export function useFinancialDashboard() {
         setRampData(rampResult.data);
       }
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       setError('Failed to connect to API');
       console.error('Financial API error:', err);
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     fetchData();
+    return () => { abortControllerRef.current?.abort(); };
   }, [fetchData]);
 
   return {
@@ -278,14 +317,23 @@ export function useNeonData(dataType: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDemo, setIsDemo] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchData = useCallback(async () => {
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(`/api/financial/neon?type=${dataType}`);
+      const response = await fetch(`/api/financial/neon?type=${dataType}`, {
+        signal: controller.signal,
+      });
       const result = await response.json();
+
+      if (controller.signal.aborted) return;
 
       if (result.success) {
         setData(result.data);
@@ -294,15 +342,19 @@ export function useNeonData(dataType: string) {
         setError(result.error || 'Failed to fetch data');
       }
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       setError('Failed to connect to API');
       console.error('Neon API error:', err);
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
   }, [dataType]);
 
   useEffect(() => {
     fetchData();
+    return () => { abortControllerRef.current?.abort(); };
   }, [fetchData]);
 
   return { data, loading, error, isDemo, refresh: fetchData };

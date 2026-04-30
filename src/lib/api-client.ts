@@ -10,7 +10,23 @@ import { supabase } from './supabase';
 let sessionPromise: Promise<string | null> | null = null;
 let sessionPromiseExpiry = 0;
 
+// Invalidate cache when auth state changes (token refresh, sign out, etc.)
+// This prevents stale tokens from being used after a refresh
+let _authListenerInitialized = false;
+function initAuthListener() {
+  if (_authListenerInitialized) return;
+  _authListenerInitialized = true;
+
+  supabase.auth.onAuthStateChange(() => {
+    // Clear the cached session so the next authFetch gets a fresh token
+    sessionPromise = null;
+    sessionPromiseExpiry = 0;
+  });
+}
+
 async function getSessionToken(): Promise<string | null> {
+  initAuthListener();
+
   const now = Date.now();
   // Reuse an in-flight or recently-resolved promise for 1 second
   if (sessionPromise && now < sessionPromiseExpiry) {
@@ -25,17 +41,28 @@ async function getSessionToken(): Promise<string | null> {
   return sessionPromise;
 }
 
-/**
- * Authenticated fetch helper that automatically includes the Bearer token
- * from the current Supabase session.
- *
- * Concurrent calls within a 1-second window share the same getSession()
- * call, preventing thundering-herd session lookups on dashboard load.
- */
-export async function authFetch(
-  url: string,
-  options: RequestInit = {}
-): Promise<Response> {
+// Deduplicate concurrent refreshSession calls. If 50 hooks 401 simultaneously,
+// only one refresh runs; the rest await the same promise.
+let refreshPromise: Promise<boolean> | null = null;
+
+async function refreshSessionDedup(): Promise<boolean> {
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = (async () => {
+    try {
+      const { data, error } = await supabase.auth.refreshSession();
+      return !error && !!data.session;
+    } catch {
+      return false;
+    }
+  })();
+  try {
+    return await refreshPromise;
+  } finally {
+    refreshPromise = null;
+  }
+}
+
+async function buildHeaders(options: RequestInit): Promise<HeadersInit> {
   const token = await getSessionToken();
 
   const headers: HeadersInit = {
@@ -54,11 +81,42 @@ export async function authFetch(
     }
   }
 
-  return fetch(url, {
+  return headers;
+}
+
+/**
+ * Authenticated fetch helper that automatically includes the Bearer token
+ * from the current Supabase session.
+ *
+ * Concurrent calls within a 1-second window share the same getSession()
+ * call, preventing thundering-herd session lookups on dashboard load.
+ *
+ * On 401, attempts a single refresh-and-retry (deduped across concurrent
+ * 401s). If refresh fails, the original 401 is returned unchanged —
+ * AuthProvider's onAuthStateChange handler clears state on TOKEN_REFRESHED
+ * with no session, which trips ProtectedRoute to redirect to /login.
+ */
+export async function authFetch(
+  url: string,
+  options: RequestInit = {},
+  _retried = false
+): Promise<Response> {
+  const headers = await buildHeaders(options);
+
+  const res = await fetch(url, {
     ...options,
     headers,
     credentials: 'include', // Also send cookies as fallback
   });
+
+  if (res.status === 401 && !_retried) {
+    const refreshed = await refreshSessionDedup();
+    if (refreshed) {
+      return authFetch(url, options, true);
+    }
+  }
+
+  return res;
 }
 
 /**
