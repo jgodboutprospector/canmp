@@ -11,6 +11,13 @@ jest.mock('@/lib/supabase', () => ({
         data: { session: { access_token: 'test-token-123' } },
         error: null,
       })),
+      onAuthStateChange: jest.fn(() => ({
+        data: { subscription: { unsubscribe: jest.fn() } },
+      })),
+      refreshSession: jest.fn(() => Promise.resolve({
+        data: { session: { access_token: 'test-token-123' } },
+        error: null,
+      })),
     },
   },
 }));

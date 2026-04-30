@@ -81,7 +81,8 @@ describe('Financial Data Hooks', () => {
 
       await waitFor(() => {
         expect(mockFetch).toHaveBeenCalledWith(
-          expect.stringContaining('fund_id=fund-123')
+          expect.stringContaining('fund_id=fund-123'),
+          expect.anything()
         );
       });
     });
@@ -96,7 +97,8 @@ describe('Financial Data Hooks', () => {
       await waitFor(() => {
         expect(mockFetch).toHaveBeenCalled();
         expect(mockFetch).not.toHaveBeenCalledWith(
-          expect.stringContaining('fund_id=all')
+          expect.stringContaining('fund_id=all'),
+          expect.anything()
         );
       });
     });
@@ -153,21 +155,21 @@ describe('Financial Data Hooks', () => {
 
       const { unmount: unmount1 } = renderHook(() => useRampData('cards'));
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('/api/financial/ramp?type=cards');
+        expect(mockFetch).toHaveBeenCalledWith('/api/financial/ramp?type=cards', expect.anything());
       });
       unmount1();
 
       mockFetch.mockClear();
       const { unmount: unmount2 } = renderHook(() => useRampData('transactions'));
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('/api/financial/ramp?type=transactions');
+        expect(mockFetch).toHaveBeenCalledWith('/api/financial/ramp?type=transactions', expect.anything());
       });
       unmount2();
 
       mockFetch.mockClear();
       renderHook(() => useRampData('reimbursements'));
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('/api/financial/ramp?type=reimbursements');
+        expect(mockFetch).toHaveBeenCalledWith('/api/financial/ramp?type=reimbursements', expect.anything());
       });
     });
 
@@ -268,8 +270,8 @@ describe('Financial Data Hooks', () => {
       });
 
       expect(mockFetch).toHaveBeenCalledTimes(2);
-      expect(mockFetch).toHaveBeenCalledWith('/api/financial/aplos?type=dashboard');
-      expect(mockFetch).toHaveBeenCalledWith('/api/financial/ramp?type=dashboard');
+      expect(mockFetch).toHaveBeenCalledWith('/api/financial/aplos?type=dashboard', expect.anything());
+      expect(mockFetch).toHaveBeenCalledWith('/api/financial/ramp?type=dashboard', expect.anything());
     });
 
     it('should set aplosData and rampData when both succeed', async () => {
